@@ -82,8 +82,9 @@ export default function App() {
   const urlMemberId = urlParams.get('member');
   const urlSpaceId = urlParams.get('space');
   const urlMode = urlParams.get('mode');
-
-  const activeMemberFromUrl = members.find((m) => m.id === urlMemberId) || null;
+  const [previewMemberId, setPreviewMemberId] = useState<string | null>(urlMemberId);
+  const activeMemberFromUrl =
+    members.find((m) => m.id === (previewMemberId || urlMemberId)) || null;
 
   const [activeSpaceId, setActiveSpaceId] = useState<string>(() => {
     if (urlSpaceId) return urlSpaceId;
@@ -259,30 +260,21 @@ export default function App() {
   // دریافت اولیه از کلود + ثبت منوی دستورات تلگرام
   useEffect(() => {
     setupTelegramBotCommands();
+    const isZeroStateReset = localStorage.getItem('sina_greenhouse_zero_state_v7') === 'true';
     fetchGreenhouseFromCloud()
       .then((remote) => {
-        if (remote && remote.plants?.length > 0) {
-          const hasHomePlantsInRemote = remote.plants.some((p) => p.spaceId === 'home');
-          const mergedPlants = hasHomePlantsInRemote
-            ? remote.plants
-            : [
-                ...remote.plants,
-                ...initialPlantsData.filter((p) => p.spaceId === 'home')
-              ];
-          const hasHomeGardensInRemote = remote.gardens?.some((g) => g.id === 'home_window');
-          const mergedGardens = hasHomeGardensInRemote
-            ? remote.gardens
-            : [
-                ...(remote.gardens || []),
-                ...initialGardensData.filter(
-                  (ig) => !(remote.gardens || []).some((rg) => rg.id === ig.id)
-                )
-              ];
-
-          setPlants(mergedPlants);
-          setGardens(mergedGardens);
-          if (remote.spaces?.length) setSpaces(remote.spaces);
-          if (remote.members?.length) setMembers(remote.members);
+        if (!remote) return;
+        if (Array.isArray(remote.plants) && (remote.plants.length > 0 || isZeroStateReset)) {
+          setPlants(remote.plants);
+          if (Array.isArray(remote.gardens) && remote.gardens.length > 0) {
+            setGardens(remote.gardens);
+          }
+          if (Array.isArray(remote.spaces) && remote.spaces.length > 0) {
+            setSpaces(remote.spaces);
+          }
+          if (Array.isArray(remote.members) && remote.members.length > 0) {
+            setMembers(remote.members);
+          }
           setCloudSynced(true);
         }
       })
@@ -529,9 +521,21 @@ export default function App() {
     return () => clearInterval(timer);
   }, [spaces, plants, gardens, members, isVisitor]);
 
-  const spaceGardens = gardens.filter((g) => (g.spaceId || 'office') === currentSpace.id);
+  const allowedGardenIds =
+    activeMemberFromUrl?.assignedGardens && activeMemberFromUrl.assignedGardens.length > 0
+      ? activeMemberFromUrl.assignedGardens
+      : null;
+
+  const spaceGardens = gardens.filter(
+    (g) =>
+      (g.spaceId || 'office') === currentSpace.id &&
+      (!allowedGardenIds || allowedGardenIds.includes(g.id))
+  );
   const spaceActivePlants = plants.filter(
-    (p) => !p.archived && (p.spaceId || 'office') === currentSpace.id
+    (p) =>
+      !p.archived &&
+      (p.spaceId || 'office') === currentSpace.id &&
+      (!allowedGardenIds || allowedGardenIds.includes(p.garden))
   );
   const spaceArchivedPlants = plants.filter(
     (p) => p.archived && (p.spaceId || 'office') === currentSpace.id
@@ -869,7 +873,18 @@ export default function App() {
           <div className="flex items-center gap-1 shrink-0">
             {!isOwner && !urlMode && (
               <button
-                onClick={() => setUserRole('owner')}
+                onClick={() => {
+                  const ownerMember = members.find((m) => m.role === 'super_admin');
+                  if (ownerMember?.pinCode) {
+                    const entered = window.prompt('🔒 پین‌کد ۴ رقمی مالک ارشد را وارد کنید:');
+                    if (entered !== ownerMember.pinCode) {
+                      alert('❌ پین‌کد واردشده صحیح نیست.');
+                      return;
+                    }
+                  }
+                  setPreviewMemberId(null);
+                  setUserRole('owner');
+                }}
                 className="px-2 h-[36px] rounded-xl bg-[#B47B26] text-white text-[10px] font-bold whitespace-nowrap"
               >
                 بازگشت به مدیریت
@@ -1531,7 +1546,45 @@ export default function App() {
           setPlants(backup.plants);
           setMembers(backup.members);
         }}
-        onSwitchPreviewRole={(role) => setUserRole(role)}
+        onResetGreenhouse={(mode) => {
+          localStorage.setItem('sina_greenhouse_zero_state_v7', 'true');
+          setUndoSnapshot(JSON.parse(JSON.stringify(plants)));
+          if (mode === 'plants_only') {
+            setPlants([]);
+            setUndoMessage('تمام گلدان‌های پیش‌فرض پاک شدند؛ اکنون از کد #۰۱ ثبت کنید.');
+          } else {
+            const freshSpace: SpaceEntity = {
+              id: 'office',
+              name: 'گلخانه کوچک من',
+              icon: '🌿',
+              radiatorOn: false
+            };
+            const freshGarden: GardenEntity = {
+              id: 'g_main',
+              spaceId: 'office',
+              name: 'باغچه اصلی',
+              lightLevel: 'high'
+            };
+            setSpaces([freshSpace]);
+            setGardens([freshGarden]);
+            setPlants([]);
+            setActiveSpaceId('office');
+            setActiveGarden('all');
+            setUndoMessage('گلخانه به حالت ۱۰۰٪ خام بازنشانی شد.');
+          }
+          setSettingsOpen(false);
+        }}
+        onSwitchPreviewRole={(role, memberId) => {
+          setUserRole(role);
+          setPreviewMemberId(memberId || null);
+          if (memberId) {
+            const targetM = members.find((m) => m.id === memberId);
+            if (targetM && targetM.assignedSpaces.length > 0) {
+              setActiveSpaceId(targetM.assignedSpaces[0]);
+              setActiveGarden('all');
+            }
+          }
+        }}
       />
 
       {confirmState && !isVisitor && (

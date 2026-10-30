@@ -4,7 +4,9 @@ import {
   type GardenEntity,
   type MemberEntity,
   type MemberRole,
-  type PlantEntity
+  type MemberPermissions,
+  type PlantEntity,
+  getDefaultMemberPermissions
 } from '../../data/initialPlants';
 import {
   type CloudConfig,
@@ -44,7 +46,8 @@ interface SettingsAndMembersModalProps {
     plants: PlantEntity[];
     members: MemberEntity[];
   }) => void;
-  onSwitchPreviewRole: (role: 'owner' | 'caretaker' | 'visitor') => void;
+  onResetGreenhouse?: (mode: 'plants_only' | 'full_zero') => void;
+  onSwitchPreviewRole: (role: 'owner' | 'caretaker' | 'visitor', memberId?: string) => void;
 }
 
 export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = ({
@@ -64,6 +67,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
   onUpdateMembers,
   onUpdateCloudConfig,
   onRestoreBackup,
+  onResetGreenhouse,
   onSwitchPreviewRole
 }) => {
   const [activeTab, setActiveTab] = useState<'members' | 'spaces' | 'telegram'>('members');
@@ -71,9 +75,17 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
   const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState<MemberRole>('caretaker');
   const [memberSpaces, setMemberSpaces] = useState<string[]>([currentSpace.id]);
+  const [memberGardens, setMemberGardens] = useState<string[]>([]);
+  const [memberPinCode, setMemberPinCode] = useState('');
+  const [memberPermissions, setMemberPermissions] = useState<MemberPermissions>(() =>
+    getDefaultMemberPermissions('caretaker')
+  );
   const [memberChatId, setMemberChatId] = useState('');
   const [notifyAlerts, setNotifyAlerts] = useState(true);
   const [notifyActions, setNotifyActions] = useState(true);
+
+  // استیت باز کردن کشوی ویرایش دسترسی برای هر عضو در لیست
+  const [expandedPermMemberId, setExpandedPermMemberId] = useState<string | null>(null);
 
   const [botUsername, setBotUsername] = useState<string>(
     cloudConfig.telegramBotUsername || ''
@@ -148,20 +160,44 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
 
   const spaceGardens = gardens.filter((g) => (g.spaceId || 'office') === currentSpace.id);
 
+  // باغچه‌های مربوط به فضاهای انتخاب‌شده هنگام تعریف عضو جدید
+  const candidateGardensForNewMember = gardens.filter((g) =>
+    memberSpaces.includes(g.spaceId || 'office')
+  );
+
   const toggleSpaceSelection = (spaceId: string) => {
     if (memberSpaces.includes(spaceId)) {
       if (memberSpaces.length > 1) {
-        setMemberSpaces(memberSpaces.filter((id) => id !== spaceId));
+        const nextSpaces = memberSpaces.filter((id) => id !== spaceId);
+        setMemberSpaces(nextSpaces);
+        setMemberGardens((prev) =>
+          prev.filter((gid) => {
+            const gObj = gardens.find((x) => x.id === gid);
+            return gObj && nextSpaces.includes(gObj.spaceId || 'office');
+          })
+        );
       }
     } else {
       setMemberSpaces([...memberSpaces, spaceId]);
     }
   };
 
+  const toggleGardenSelectionForNewMember = (gardenId: string) => {
+    if (memberGardens.includes(gardenId)) {
+      setMemberGardens(memberGardens.filter((id) => id !== gardenId));
+    } else {
+      setMemberGardens([...memberGardens, gardenId]);
+    }
+  };
+
   const buildMemberAppUrl = (member: MemberEntity): string => {
     const targetSpace = member.assignedSpaces[0] || currentSpace.id;
     const roleMode =
-      member.role === 'super_admin' || member.role === 'space_admin' ? 'admin' : 'guest';
+      member.role === 'super_admin' || member.role === 'space_admin'
+        ? 'admin'
+        : member.role === 'viewer'
+        ? 'visitor'
+        : 'guest';
     return `${window.location.origin}${window.location.pathname}?space=${targetSpace}&member=${member.id}&mode=${roleMode}`;
   };
 
@@ -173,15 +209,24 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     return `https://t.me/${cleanUname}?start=join_${member.id}`;
   };
 
+  const handleRoleChangeForNewMember = (newRole: MemberRole) => {
+    setMemberRole(newRole);
+    setMemberPermissions(getDefaultMemberPermissions(newRole));
+  };
+
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberName.trim()) return;
 
+    const effectiveRole: MemberRole = isSuperAdmin ? memberRole : 'caretaker';
     const newMember: MemberEntity = {
       id: 'mem_' + Date.now(),
       name: memberName.trim(),
-      role: isSuperAdmin ? memberRole : 'caretaker',
+      role: effectiveRole,
       assignedSpaces: isSuperAdmin ? memberSpaces : [currentSpace.id],
+      assignedGardens: memberGardens.length > 0 ? memberGardens : [],
+      pinCode: memberPinCode.replace(/\D/g, '').slice(0, 4) || undefined,
+      permissions: memberPermissions,
       telegramChatId: memberChatId.trim(),
       notifyAlerts,
       notifyActions,
@@ -191,8 +236,49 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     onUpdateMembers([...members, newMember]);
     setMemberName('');
     setMemberChatId('');
+    setMemberPinCode('');
+    setMemberGardens([]);
     setActiveInviteMember(newMember);
     setCopiedFlag(null);
+  };
+
+  // بروزرسانی مجوزها، نقش، پین‌کد یا باغچه‌های یک عضو موجود
+  const handleUpdateExistingMember = (
+    memberId: string,
+    patch: Partial<MemberEntity>
+  ) => {
+    onUpdateMembers(
+      members.map((m) => (m.id === memberId ? { ...m, ...patch } : m))
+    );
+  };
+
+  const handleToggleExistingMemberPerm = (
+    member: MemberEntity,
+    permKey: keyof MemberPermissions
+  ) => {
+    const currentPerms = member.permissions || getDefaultMemberPermissions(member.role);
+    const updatedPerms: MemberPermissions = {
+      ...currentPerms,
+      [permKey]: !currentPerms[permKey]
+    };
+    handleUpdateExistingMember(member.id, { permissions: updatedPerms });
+  };
+
+  const handleToggleExistingMemberSpace = (member: MemberEntity, spaceId: string) => {
+    const hasSpace = member.assignedSpaces.includes(spaceId);
+    if (hasSpace && member.assignedSpaces.length <= 1) return;
+    const nextSpaces = hasSpace
+      ? member.assignedSpaces.filter((id) => id !== spaceId)
+      : [...member.assignedSpaces, spaceId];
+    handleUpdateExistingMember(member.id, { assignedSpaces: nextSpaces });
+  };
+
+  const handleToggleExistingMemberGarden = (member: MemberEntity, gardenId: string) => {
+    const currentGardens = member.assignedGardens || [];
+    const nextGardens = currentGardens.includes(gardenId)
+      ? currentGardens.filter((id) => id !== gardenId)
+      : [...currentGardens, gardenId];
+    handleUpdateExistingMember(member.id, { assignedGardens: nextGardens });
   };
 
   const handleOpenInviteSheet = async (member: MemberEntity, autoCopyType?: 'bot' | 'app') => {
@@ -380,7 +466,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
         alert('❌ فایل انتخاب‌شده معتبر نیست.');
       }
     };
-    reader.readAsDataURL(file);
+    reader.readAsText(file);
   };
 
   const handleManualTelegramReport = async (level: 'morning' | 'noon_escalation') => {
@@ -411,7 +497,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     }
   };
 
-  // نصب منوی دستورات رسمی و ارسال کیبورد فارسی دائمی به تلگرام
   const handleInstallBotKeyboardAndMenu = async () => {
     setTestStatus({
       loading: true,
@@ -464,7 +549,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
             </h3>
             <p className="text-[10.5px] text-[#5A655E] truncate mt-0.5">
               {isSuperAdmin
-                ? 'دسترسی مالک ارشد (مدیریت کل گلخانه‌ها، باغچه‌ها و ربات دوطرفه تلگرام)'
+                ? 'دسترسی مالک ارشد (مدیریت کل گلخانه‌ها، باغچه‌ها، مجوزهای اعضا و تلگرام)'
                 : `مدیریت اختصاصی «${currentSpace.name}»`}
             </p>
           </div>
@@ -486,7 +571,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 : 'font-semibold text-[#5A655E]'
             }`}
           >
-            👥 اعضا و دعوت
+            👥 اعضا و دسترسی
           </button>
           <button
             type="button"
@@ -513,7 +598,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
         </div>
 
         <div className="overflow-y-auto overscroll-contain flex-1 space-y-3.5 pr-0.5">
-          {/* ================= تب ۱: مدیریت اعضا و پنجره هوشمند دعوت به ربات ================= */}
+          {/* ================= تب ۱: مدیریت اعضا، مجوزهای ریزدانه و دعوت به ربات ================= */}
           {activeTab === 'members' && (
             <div className="space-y-3.5">
               {activeInviteMember && (
@@ -657,17 +742,18 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               )}
 
+              {/* فرم تعریف عضو جدید همراه با مجوزهای ریزدانه و پین‌کد */}
               <form
                 onSubmit={handleAddMember}
                 className="bg-[#F6F3EC]/90 border border-[#E8E2D5] rounded-2xl p-3 space-y-2.5"
               >
                 <div className="text-[12px] font-bold text-[#1C2822]">
-                  ➕ تعریف عضو جدید (مادر، برادر، همکار و...)
+                  ➕ تعریف عضو جدید و تنظیم دقیق مجوزها
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="min-w-0">
-                    <label className="block text-[10.5px] font-bold text-[#5A655E] mb-1">
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-5 min-w-0">
+                    <label className="block text-[10px] font-bold text-[#5A655E] mb-1">
                       نام شخص *
                     </label>
                     <input
@@ -679,49 +765,130 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     />
                   </div>
 
-                  <div className="min-w-0">
-                    <label className="block text-[10.5px] font-bold text-[#5A655E] mb-1">
-                      سطح دسترسی
+                  <div className="col-span-4 min-w-0">
+                    <label className="block text-[10px] font-bold text-[#5A655E] mb-1">
+                      نقش پایه
                     </label>
                     <select
                       value={memberRole}
-                      onChange={(e) => setMemberRole(e.target.value as MemberRole)}
+                      onChange={(e) => handleRoleChangeForNewMember(e.target.value as MemberRole)}
                       disabled={!isSuperAdmin}
-                      className="w-full min-w-0 px-2 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[11px]"
+                      className="w-full min-w-0 px-1.5 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[10.5px] font-bold"
                     >
                       <option value="caretaker">🤝 همیار مراقبت</option>
+                      <option value="viewer">👁️ بازدیدکننده</option>
                       <option value="space_admin">🏡 مدیر گلخانه</option>
                       {isSuperAdmin && <option value="super_admin">👑 مالک ارشد</option>}
                     </select>
                   </div>
+
+                  <div className="col-span-3 min-w-0">
+                    <label className="block text-[10px] font-bold text-[#5A655E] mb-1">
+                      پین (اختیاری)
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={memberPinCode}
+                      onChange={(e) => setMemberPinCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="1234"
+                      dir="ltr"
+                      className="w-full min-w-0 px-2 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[11px] text-center font-mono"
+                    />
+                  </div>
                 </div>
 
                 {isSuperAdmin && (
-                  <div>
-                    <label className="block text-[10.5px] font-bold text-[#5A655E] mb-1">
-                      مربوط به کدام گلخانه است؟
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {spaces.map((sp) => {
-                        const selected = memberSpaces.includes(sp.id);
-                        return (
-                          <button
-                            key={sp.id}
-                            type="button"
-                            onClick={() => toggleSpaceSelection(sp.id)}
-                            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all ${
-                              selected
-                                ? 'bg-[#2E5A44] text-white border-[#2E5A44]'
-                                : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
-                            }`}
-                          >
-                            {sp.icon} {sp.name} {selected ? '✓' : ''}
-                          </button>
-                        );
-                      })}
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-[#5A655E] mb-1">
+                        ۱. دسترسی به کدام گلخانه‌ها؟
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {spaces.map((sp) => {
+                          const selected = memberSpaces.includes(sp.id);
+                          return (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => toggleSpaceSelection(sp.id)}
+                              className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold border transition-all ${
+                                selected
+                                  ? 'bg-[#2E5A44] text-white border-[#2E5A44]'
+                                  : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                              }`}
+                            >
+                              {sp.icon} {sp.name} {selected ? '✓' : ''}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+
+                    {candidateGardensForNewMember.length > 1 && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-[#5A655E] mb-1">
+                          ۲. محدودسازی به باغچه‌های خاص (انتخاب نکردن = دسترسی به همه باغچه‌ها):
+                        </label>
+                        <div className="flex flex-wrap gap-1">
+                          {candidateGardensForNewMember.map((g) => {
+                            const selected = memberGardens.includes(g.id);
+                            return (
+                              <button
+                                key={g.id}
+                                type="button"
+                                onClick={() => toggleGardenSelectionForNewMember(g.id)}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-all ${
+                                  selected
+                                    ? 'bg-[#2B7A9B] text-white border-[#2B7A9B]'
+                                    : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                                }`}
+                              >
+                                🪴 {g.name} {selected ? '✓' : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* ۴ مجوز ریزدانه برای عضو جدید */}
+                <div className="bg-[#FDFBF7] p-2 rounded-xl border border-[#E8E2D5] space-y-1.5">
+                  <div className="text-[10px] font-bold text-[#1C2822]">
+                    🛡️ مجوزهای عملیاتی این عضو در گلخانه:
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                    {[
+                      { key: 'canWaterAndMist', label: '💧 ثبت آبیاری و غبار' },
+                      { key: 'canEditPlants', label: '🌱 افزودن/ویرایش گیاه' },
+                      { key: 'canManageSpaces', label: '🔥 شوفاژ و باغچه‌ها' },
+                      { key: 'canDelete', label: '🗑️ مجوز حذف گلدان' }
+                    ].map((permItem) => {
+                      const k = permItem.key as keyof MemberPermissions;
+                      const isChecked = memberPermissions[k];
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() =>
+                            setMemberPermissions((prev) => ({ ...prev, [k]: !prev[k] }))
+                          }
+                          className={`py-1 px-2 rounded-lg border text-right font-bold flex items-center justify-between transition-all ${
+                            isChecked
+                              ? 'bg-[#E6F0EB] text-[#2E5A44] border-[#2E5A44]/30'
+                              : 'bg-[#F6F3EC] text-[#5A655E] border-[#E8E2D5]'
+                          }`}
+                        >
+                          <span className="truncate">{permItem.label}</span>
+                          <span>{isChecked ? '✓' : '✕'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-3 pt-0.5 text-[11px] font-semibold text-[#1C2822]">
                   <label className="flex items-center gap-1 cursor-pointer">
@@ -748,7 +915,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                   type="submit"
                   className="w-full py-2 rounded-xl bg-[#2E5A44] text-white text-[12px] font-bold warm-shadow active:scale-[0.99] transition-transform"
                 >
-                  + افزودن عضو و نمایش لینک دعوت تلگرام
+                  + افزودن عضو و نمایش لینک دعوت اختصاصی
                 </button>
               </form>
 
@@ -813,7 +980,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
 
               <div className="space-y-2">
                 <div className="text-[12px] font-bold text-[#1C2822]">
-                  📋 لیست اعضا ({toPersianNum(visibleMembers.length)} نفر)
+                  📋 لیست اعضا و مدیریت دسترسی‌ها ({toPersianNum(visibleMembers.length)} نفر)
                 </div>
 
                 {visibleMembers.map((m) => {
@@ -822,12 +989,31 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                       ? '👑 مالک ارشد'
                       : m.role === 'space_admin'
                       ? '🏡 مدیر گلخانه'
+                      : m.role === 'viewer'
+                      ? '👁️ بازدیدکننده'
                       : '🤝 همیار مراقبت';
+
+                  const effectivePerms =
+                    m.permissions || getDefaultMemberPermissions(m.role);
 
                   const spaceNames = spaces
                     .filter((s) => m.assignedSpaces.includes(s.id))
                     .map((s) => `${s.icon} ${s.name}`)
                     .join(' ، ');
+
+                  const memberCandidateGardens = gardens.filter((g) =>
+                    m.assignedSpaces.includes(g.spaceId || 'office')
+                  );
+
+                  const assignedGardenNames =
+                    m.assignedGardens && m.assignedGardens.length > 0
+                      ? gardens
+                          .filter((g) => m.assignedGardens?.includes(g.id))
+                          .map((g) => g.name)
+                          .join('، ')
+                      : 'همه باغچه‌ها';
+
+                  const isPermExpanded = expandedPermMemberId === m.id;
 
                   return (
                     <div
@@ -845,9 +1031,16 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             <span className="px-2 py-0.5 rounded-lg bg-[#E6F0EB] text-[#2E5A44] text-[10px] font-bold">
                               {roleBadge}
                             </span>
+                            {m.pinCode && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-[#FEF6E7] text-[#B47B26] text-[9.5px] font-bold">
+                                🔒 پین فعال
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10.5px] text-[#5A655E] mt-0.5">
                             گلخانه: <strong className="text-[#1C2822]">{spaceNames}</strong>
+                            {' • '}
+                            باغچه: <strong className="text-[#2E5A44]">{assignedGardenNames}</strong>
                           </div>
                           <div className="text-[10.5px] mt-0.5">
                             وضعیت تلگرام:{' '}
@@ -864,6 +1057,21 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedPermMemberId(isPermExpanded ? null : m.id)
+                              }
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                isPermExpanded
+                                  ? 'bg-[#2E5A44] text-white border-[#2E5A44]'
+                                  : 'bg-[#F6F3EC] text-[#1C2822] border-[#E8E2D5]'
+                              }`}
+                            >
+                              🛡️ دسترسی‌ها
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleToggleMemberActive(m.id)}
@@ -886,6 +1094,155 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                           )}
                         </div>
                       </div>
+
+                      {/* کشوی ویرایش زنده دسترسی‌ها، باغچه‌ها و پین‌کد برای این عضو */}
+                      {isPermExpanded && isSuperAdmin && (
+                        <div className="bg-[#F6F3EC] border border-[#E8E2D5] rounded-xl p-2.5 space-y-2 text-[10.5px]">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[9.5px] font-bold text-[#5A655E] mb-0.5">
+                                تغییر نقش پایه:
+                              </label>
+                              <select
+                                value={m.role}
+                                disabled={m.id === 'm_owner_sina'}
+                                onChange={(e) => {
+                                  const nextRole = e.target.value as MemberRole;
+                                  handleUpdateExistingMember(m.id, {
+                                    role: nextRole,
+                                    permissions: getDefaultMemberPermissions(nextRole)
+                                  });
+                                }}
+                                className="w-full px-2 py-1 rounded-lg bg-[#FDFBF7] border border-[#E8E2D5] text-[10.5px] font-bold"
+                              >
+                                <option value="super_admin">👑 مالک ارشد</option>
+                                <option value="space_admin">🏡 مدیر گلخانه</option>
+                                <option value="caretaker">🤝 همیار مراقبت</option>
+                                <option value="viewer">👁️ بازدیدکننده</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[9.5px] font-bold text-[#5A655E] mb-0.5">
+                                پین‌کد ۴ رقمی (جهت قفل):
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={4}
+                                value={m.pinCode || ''}
+                                onChange={(e) =>
+                                  handleUpdateExistingMember(m.id, {
+                                    pinCode: e.target.value.replace(/\D/g, '').slice(0, 4) || undefined
+                                  })
+                                }
+                                placeholder="بدون پین"
+                                dir="ltr"
+                                className="w-full px-2 py-1 rounded-lg bg-[#FDFBF7] border border-[#E8E2D5] text-[10.5px] font-mono text-center"
+                              />
+                            </div>
+                          </div>
+
+                          {/* تغییر فضاهای مجاز */}
+                          <div>
+                            <div className="text-[9.5px] font-bold text-[#5A655E] mb-1">
+                              گلخانه‌های مجاز:
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {spaces.map((sp) => {
+                                const hasSp = m.assignedSpaces.includes(sp.id);
+                                return (
+                                  <button
+                                    key={sp.id}
+                                    type="button"
+                                    onClick={() => handleToggleExistingMemberSpace(m, sp.id)}
+                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                                      hasSp
+                                        ? 'bg-[#2E5A44] text-white border-[#2E5A44]'
+                                        : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                                    }`}
+                                  >
+                                    {sp.icon} {sp.name} {hasSp ? '✓' : ''}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* تغییر باغچه‌های مجاز */}
+                          {memberCandidateGardens.length > 1 && (
+                            <div>
+                              <div className="text-[9.5px] font-bold text-[#5A655E] mb-1">
+                                فیلتر باغچه‌ها (خالی = دسترسی به همه باغچه‌ها):
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {memberCandidateGardens.map((g) => {
+                                  const hasG = (m.assignedGardens || []).includes(g.id);
+                                  return (
+                                    <button
+                                      key={g.id}
+                                      type="button"
+                                      onClick={() => handleToggleExistingMemberGarden(m, g.id)}
+                                      className={`px-2 py-0.5 rounded-lg text-[9.5px] font-semibold border ${
+                                        hasG
+                                          ? 'bg-[#2B7A9B] text-white border-[#2B7A9B]'
+                                          : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                                      }`}
+                                    >
+                                      🪴 {g.name} {hasG ? '✓' : ''}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ۴ کلید مجوز عملیاتی */}
+                          <div className="grid grid-cols-2 gap-1 pt-0.5">
+                            {[
+                              { key: 'canWaterAndMist', label: '💧 آبیاری و غبارپاشی' },
+                              { key: 'canEditPlants', label: '🌱 افزودن/ویرایش گیاه' },
+                              { key: 'canManageSpaces', label: '🔥 شوفاژ و باغچه‌ها' },
+                              { key: 'canDelete', label: '🗑️ مجوز حذف گلدان' }
+                            ].map((item) => {
+                              const k = item.key as keyof MemberPermissions;
+                              const on = effectivePerms[k];
+                              return (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  disabled={m.id === 'm_owner_sina'}
+                                  onClick={() => handleToggleExistingMemberPerm(m, k)}
+                                  className={`py-1 px-2 rounded-lg border text-[10px] font-bold flex items-center justify-between ${
+                                    on
+                                      ? 'bg-[#E6F0EB] text-[#2E5A44] border-[#2E5A44]/30'
+                                      : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                                  }`}
+                                >
+                                  <span>{item.label}</span>
+                                  <span>{on ? '✓' : '✕'}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const previewRole =
+                                m.role === 'super_admin' || m.role === 'space_admin'
+                                  ? 'owner'
+                                  : m.role === 'viewer' || !effectivePerms.canWaterAndMist
+                                  ? 'visitor'
+                                  : 'caretaker';
+                              onSwitchPreviewRole(previewRole, m.id);
+                              onClose();
+                            }}
+                            className="w-full py-1.5 rounded-lg bg-[#2B7A9B] text-white text-[10.5px] font-bold"
+                          >
+                            👤 پیش‌نمایش برنامه از دید «{m.name}»
+                          </button>
+                        </div>
+                      )}
 
                       <div className="pt-1.5 border-t border-[#E8E2D5]/80 flex flex-wrap items-center justify-between gap-1.5 text-[10.5px]">
                         <div className="flex items-center gap-1">
@@ -1187,7 +1544,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
             </div>
           )}
 
-          {/* ================= تب ۳: تلگرام دوطرفه، بکاپ، کلود و کلید هوش مصنوعی ================= */}
+          {/* ================= تب ۳: تلگرام دوطرفه، بکاپ، کلود و شروع از صفر ================= */}
           {activeTab === 'telegram' && (
             <div className="space-y-3.5">
               <div className="bg-[#E6F0EB]/70 p-3 rounded-2xl border border-[#2E5A44]/20 space-y-2">
@@ -1262,6 +1619,49 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                   </label>
                 </div>
               </div>
+
+              {isSuperAdmin && onResetGreenhouse && (
+                <div className="bg-[#FCEEE9]/60 p-3 rounded-2xl border border-[#C85A32]/30 space-y-2">
+                  <div className="text-[12px] font-bold text-[#C85A32]">
+                    🧹 پاکسازی داده‌های پیش‌فرض و شروع از صفر (Zero-State)
+                  </div>
+                  <p className="text-[10.5px] text-[#5A655E] leading-relaxed">
+                    می‌توانید فقط گلدان‌های پیش‌فرض را خالی کنید (با حفظ فضاها و باغچه‌ها) یا کل گلخانه را به یک فضای خام اولیه بازنشانی نمایید:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            '⚠️ آیا تمام گلدان‌های فعلی پاک شوند تا ثبت گلدان‌ها را از کد #۰۱ شروع کنید؟ (گلخانه‌ها و باغچه‌ها حفظ می‌شوند)'
+                          )
+                        ) {
+                          onResetGreenhouse('plants_only');
+                        }
+                      }}
+                      className="py-2 px-2 rounded-xl bg-[#FDFBF7] border border-[#C85A32]/40 text-[#C85A32] text-[10.5px] font-bold warm-shadow"
+                    >
+                      🪴 فقط حذف همه گلدان‌ها
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            '⚠️ آیا کل سیستم (گلخانه‌ها، باغچه‌ها و گلدان‌ها) به حالت ۱۰۰٪ خام اولیه بازنشانی شود؟'
+                          )
+                        ) {
+                          onResetGreenhouse('full_zero');
+                        }
+                      }}
+                      className="py-2 px-2 rounded-xl bg-[#C85A32] text-white text-[10.5px] font-bold warm-shadow"
+                    >
+                      🔄 شروع ۱۰۰٪ خام از صفر
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {isSuperAdmin && (
                 <div className="bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] space-y-2.5">

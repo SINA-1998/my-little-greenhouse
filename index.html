@@ -2,11 +2,22 @@
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>گلخانه کوچک من</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>گلخانه کوچک من | Botanica</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#2E5A44" />
   </head>
-  <body class="bg-[#F6F3EC] text-[#1C2822] antialiased selection:bg-[#2E5A44] selection:text-white">
+  <body class="bg-[#F6F3EC] text-[#1C2822]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.log('SW registration failed: ', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

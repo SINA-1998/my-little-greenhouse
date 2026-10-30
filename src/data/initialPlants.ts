@@ -34,19 +34,57 @@ export interface GardenEntity {
   lightLevel: 'high' | 'medium' | 'low';
 }
 
-export type MemberRole = 'super_admin' | 'space_admin' | 'caretaker';
+export type MemberRole = 'super_admin' | 'space_admin' | 'caretaker' | 'viewer';
+
+export interface MemberPermissions {
+  canWaterAndMist: boolean;
+  canEditPlants: boolean;
+  canManageSpaces: boolean;
+  canDelete: boolean;
+}
 
 export interface MemberEntity {
   id: string;
   name: string;
   role: MemberRole;
   assignedSpaces: string[];
+  assignedGardens?: string[];
+  pinCode?: string;
+  permissions?: MemberPermissions;
   telegramChatId: string;
   telegramUsername?: string;
   notifyAlerts: boolean;
   notifyActions: boolean;
   active: boolean;
 }
+
+export const getDefaultMemberPermissions = (role: MemberRole): MemberPermissions => {
+  switch (role) {
+    case 'super_admin':
+    case 'space_admin':
+      return {
+        canWaterAndMist: true,
+        canEditPlants: true,
+        canManageSpaces: true,
+        canDelete: true
+      };
+    case 'caretaker':
+      return {
+        canWaterAndMist: true,
+        canEditPlants: false,
+        canManageSpaces: false,
+        canDelete: false
+      };
+    case 'viewer':
+    default:
+      return {
+        canWaterAndMist: false,
+        canEditPlants: false,
+        canManageSpaces: false,
+        canDelete: false
+      };
+  }
+};
 
 export type PlantStatusType = 'ok' | 'thirsty' | 'mist' | 'locked' | 'recovery';
 
