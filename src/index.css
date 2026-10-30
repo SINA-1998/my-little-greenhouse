@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* ۱. تعریف خانواده فونت دانا (فارسی‌نومبرز مخصوص متون، اعداد، تگ‌ها و پیمانه‌ها) */
+@font-face {
+  font-family: 'DanaFaNum';
+  src: url('/fonts/DanaFaNum-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DanaFaNum';
+  src: url('/fonts/DanaFaNum-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DanaFaNum';
+  src: url('/fonts/DanaFaNum-DemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ۲. تعریف خانواده فونت یکان‌بخ (فارسی‌نومبرز مخصوص تیترها، نام گلدان‌ها و دکمه‌های اصلی) */
+@font-face {
+  font-family: 'YekanBakhFaNum';
+  src: url('/fonts/YekanBakhFaNum-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'YekanBakhFaNum';
+  src: url('/fonts/YekanBakhFaNum-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "ss02" 1, "tnum" 1;
+    letter-spacing: 0 !important;
+  }
+
+  body {
+    font-family: 'DanaFaNum', system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    background-color: #F6F3EC;
+    color: #1C2822;
+    overflow-x: hidden;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* اعمال خودکار یکان‌بخ روی تمام تیترها و نام گیاهان */
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'YekanBakhFaNum', 'DanaFaNum', sans-serif;
+    font-feature-settings: "ss02" 1, "tnum" 1;
+    letter-spacing: -0.01em !important;
+  }
+}
+
+.persian-num {
+  font-family: 'DanaFaNum', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "ss02" 1, "tnum" 1;
+  letter-spacing: 0 !important;
+}
+
+.warm-shadow {
+  box-shadow: 0 8px 24px -4px rgba(28, 40, 34, 0.05), 0 2px 6px -1px rgba(28, 40, 34, 0.03);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
