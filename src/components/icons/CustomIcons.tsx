@@ -1,5 +1,9 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { type PotColorType, type PotShapeType } from '../../data/initialPlants';
+
+// ============================================================================
+// ۱. آیکون‌های رابط کاربری (UI Icons)
+// ============================================================================
 
 export const IconLeafLogo: React.FC<{ className?: string }> = ({ className = 'w-6 h-6' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none">
@@ -19,6 +23,32 @@ export const IconLeafLogo: React.FC<{ className?: string }> = ({ className = 'w-
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+  </svg>
+);
+
+export const IconAddSprout: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <path d="M7 20h10" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    <path d="M12 20v-8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    <path
+      d="M12 13c-3.5 0-6-2.2-6-5.8 3.5 0 6 2.2 6 5.8Z"
+      fill="currentColor"
+      fillOpacity="0.22"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M12 11c0-3.5 2.5-6 6-6 0 3.5-2.5 6-6 6Z"
+      fill="currentColor"
+      fillOpacity="0.22"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M19 11v4M17 13h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
   </svg>
 );
 
@@ -119,51 +149,1078 @@ export const IconSettings: React.FC<{ className?: string }> = ({ className = 'w-
   </svg>
 );
 
-// پالت رنگی واقع‌گرایانه برای ۶ رنگ گلدان (به همراه سایه و خطوط برجسته)
-const getPotPalette = (potColor: PotColorType | string) => {
-  switch (potColor) {
-    case 'black':
-      return { fill: '#262B30', shade: '#1B1F23', stroke: '#111417', detail: '#3B424A' };
-    case 'mint':
-      return { fill: '#CBEAD9', shade: '#B2DEC7', stroke: '#7BAF96', detail: '#94C9AE' };
-    case 'terracotta':
-      return { fill: '#D97B54', shade: '#C26540', stroke: '#8F4326', detail: '#E69573' };
-    case 'grey':
-      return { fill: '#9CA3AF', shade: '#848C99', stroke: '#555E6B', detail: '#B6BDC7' };
-    case 'cream':
-      return { fill: '#F5EFE0', shade: '#EAE0C8', stroke: '#C8BCA2', detail: '#DDD2B8' };
-    case 'white':
-    default:
-      return { fill: '#FFFFFF', shade: '#F2EFE9', stroke: '#CFC8B8', detail: '#E2DDD0' };
+// ============================================================================
+// ۲. بانک ۱۷ رنگ و بافت گلدان + ۲۰ مدل هندسی گلدان (فاز ۱۱)
+// ============================================================================
+
+export type PotTextureType =
+  | 'matte'
+  | 'glossy'
+  | 'porous_clay'
+  | 'concrete_grain'
+  | 'terrazzo_speckled'
+  | 'wood_grain';
+
+export interface PotColorMetadata {
+  id: PotColorType;
+  nameFa: string;
+  shortNameFa: string;
+  nameEn: string;
+  baseHex: string;
+  shadowHex: string;
+  highlightHex: string;
+  rimHex: string;
+  insideHex: string;
+  texture: PotTextureType;
+  heatAbsorption: 'low' | 'medium' | 'high';
+  styleNote: string;
+}
+
+export interface PotModelMetadata {
+  id: PotShapeType;
+  nameFa: string;
+  shortNameFa: string;
+  nameEn: string;
+  category: 'classic' | 'modern' | 'specialty' | 'hanging' | 'architectural';
+  depthProfile: 'shallow' | 'medium' | 'deep';
+  stabilityScore: number;
+  moistureRetention: 'low' | 'medium' | 'high';
+  bestForDescription: string;
+  dimensionsRatio: { topWidth: number; bottomWidth: number; height: number };
+}
+
+export const POT_COLOR_PALETTE: Record<string, PotColorMetadata> = {
+  white: {
+    id: 'white',
+    nameFa: 'سفید مات سرامیکی',
+    shortNameFa: 'سفید مات',
+    nameEn: 'Matte Ceramic White',
+    baseHex: '#F8FAFC',
+    shadowHex: '#CBD5E1',
+    highlightHex: '#FFFFFF',
+    rimHex: '#F1F5F9',
+    insideHex: '#94A3B8',
+    texture: 'matte',
+    heatAbsorption: 'low',
+    styleNote: 'افزایش‌دهنده درخشش برگ‌های تیره، ابلق و مشکی در فضاهای مدرن'
+  },
+  cream: {
+    id: 'cream',
+    nameFa: 'کرم کاغذی گرم',
+    shortNameFa: 'کرم گرم',
+    nameEn: 'Warm Parchment Cream',
+    baseHex: '#F5EFE6',
+    shadowHex: '#D8C9B8',
+    highlightHex: '#FAF7F2',
+    rimHex: '#EDE3D5',
+    insideHex: '#A89886',
+    texture: 'matte',
+    heatAbsorption: 'low',
+    styleNote: 'ایجاد هارمونی ملایم با برگ‌های سبز زیتونی و دکوراسیون مینیمال گرم'
+  },
+  terracotta: {
+    id: 'terracotta',
+    nameFa: 'سفالی اخرایی اصیل',
+    shortNameFa: 'سفالی اصیل',
+    nameEn: 'Classic Ochre Terracotta',
+    baseHex: '#C86D51',
+    shadowHex: '#8F432C',
+    highlightHex: '#DF8A6F',
+    rimHex: '#D4795D',
+    insideHex: '#6E321F',
+    texture: 'porous_clay',
+    heatAbsorption: 'medium',
+    styleNote: 'دارای تخلخل تنفسی بالا برای خروج رطوبت اضافی؛ ایده‌آل برای کاکتوس و ساکولنت'
+  },
+  terracotta_light: {
+    id: 'terracotta_light',
+    nameFa: 'سفالی روشن مدیترانه‌ای',
+    shortNameFa: 'سفالی روشن',
+    nameEn: 'Light Tuscan Clay',
+    baseHex: '#DDA185',
+    shadowHex: '#B27256',
+    highlightHex: '#EBB9A2',
+    rimHex: '#E3AC92',
+    insideHex: '#8C543C',
+    texture: 'porous_clay',
+    heatAbsorption: 'low',
+    styleNote: 'بافت سفالی تنفس‌پذیر با تناژ روشن برای گیاهان مدیترانه‌ای، اسطوخودوس و رزماری'
+  },
+  mint: {
+    id: 'mint',
+    nameFa: 'سبز مریم‌گلی و نعنایی',
+    shortNameFa: 'سبز نعنایی',
+    nameEn: 'Sage & Mint Pastel',
+    baseHex: '#A7C4B5',
+    shadowHex: '#739584',
+    highlightHex: '#C5DDD0',
+    rimHex: '#B4CFC1',
+    insideHex: '#567364',
+    texture: 'matte',
+    heatAbsorption: 'low',
+    styleNote: 'مکمل فوق‌العاده برای گیاهان دارای رگه‌های صورتی، سفید و نقره‌ای مانند سینگونیوم و کالاتیا'
+  },
+  forest_green: {
+    id: 'forest_green',
+    nameFa: 'سبز جنگلی لعاب‌دار',
+    shortNameFa: 'سبز جنگلی',
+    nameEn: 'Glazed Forest Emerald',
+    baseHex: '#2D5A4C',
+    shadowHex: '#18382E',
+    highlightHex: '#467B6A',
+    rimHex: '#366858',
+    insideHex: '#122A23',
+    texture: 'glossy',
+    heatAbsorption: 'high',
+    styleNote: 'جلوه اشرافی و کلاسیک برای گیاهان برگ‌طلایی، نئونی و گیاهان گلدار سفید و قرمز'
+  },
+  olive: {
+    id: 'olive',
+    nameFa: 'زیتونی تیره مدیترانه‌ای',
+    shortNameFa: 'زیتونی',
+    nameEn: 'Mediterranean Olive Green',
+    baseHex: '#6B7A53',
+    shadowHex: '#485436',
+    highlightHex: '#8B9B70',
+    rimHex: '#798960',
+    insideHex: '#333C26',
+    texture: 'matte',
+    heatAbsorption: 'medium',
+    styleNote: 'پس‌زمینه طبیعی جنگلی برای گیاهان ابلق کرم‌رنگ مانند دیفن‌باخیا و پتوس مرمری'
+  },
+  sand: {
+    id: 'sand',
+    nameFa: 'شنی بیابانی',
+    shortNameFa: 'شنی',
+    nameEn: 'Desert Dune Sand',
+    baseHex: '#DEC5A6',
+    shadowHex: '#B59672',
+    highlightHex: '#EEDCC6',
+    rimHex: '#E5CFB3',
+    insideHex: '#8A6F4E',
+    texture: 'concrete_grain',
+    heatAbsorption: 'low',
+    styleNote: 'الهام‌گرفته از زیستگاه طبیعی نخل‌ها، آگاو، لیتوپس و کاکتوس‌های مکزیکی'
+  },
+  khaki: {
+    id: 'khaki',
+    nameFa: 'خاکی و بژ سنگی',
+    shortNameFa: 'بژ سنگی',
+    nameEn: 'Earthy Travertine Khaki',
+    baseHex: '#C2B29F',
+    shadowHex: '#94836F',
+    highlightHex: '#D9CBB9',
+    rimHex: '#CCC0AE',
+    insideHex: '#6E604F',
+    texture: 'matte',
+    heatAbsorption: 'medium',
+    styleNote: 'هماهنگی طبیعی با تنه‌های چوبی، بونسای‌ها و گیاهان برگ‌چرمی'
+  },
+  terrazzo_cream: {
+    id: 'terrazzo_cream',
+    nameFa: 'کرم سنگ‌ریزه (تراتزو)',
+    shortNameFa: 'تراتزو',
+    nameEn: 'Venetian Terrazzo Cream',
+    baseHex: '#EFECE6',
+    shadowHex: '#C7C0B5',
+    highlightHex: '#FAF8F5',
+    rimHex: '#E5E0D8',
+    insideHex: '#9C9488',
+    texture: 'terrazzo_speckled',
+    heatAbsorption: 'low',
+    styleNote: 'بافت دکوراتیو با دانه‌های رنگی مرمر و گرانیت؛ مناسب گیاهان مدرن رومیزی'
+  },
+  blush: {
+    id: 'blush',
+    nameFa: 'صورتی خاکی پاستلی',
+    shortNameFa: 'صورتی خاکی',
+    nameEn: 'Dusty Terracotta Blush',
+    baseHex: '#E2B4B1',
+    shadowHex: '#B88380',
+    highlightHex: '#F2D2CF',
+    rimHex: '#EAC1BE',
+    insideHex: '#8F5D5A',
+    texture: 'matte',
+    heatAbsorption: 'low',
+    styleNote: 'هم‌خانواده رنگی با برگ‌های سرخابی، صورتی و بنفش مانند کالاتیا اورانتا و فیتونیا'
+  },
+  cobalt: {
+    id: 'cobalt',
+    nameFa: 'آبی کبالت سلطنتی',
+    shortNameFa: 'آبی کبالت',
+    nameEn: 'Imperial Cobalt Glaze',
+    baseHex: '#1E40AF',
+    shadowHex: '#1E3A8A',
+    highlightHex: '#3B82F6',
+    rimHex: '#2563EB',
+    insideHex: '#172554',
+    texture: 'glossy',
+    heatAbsorption: 'medium',
+    styleNote: 'رنگ سنتی سینی‌های بونسای شرقی و گلدان‌های سرامیکی لعاب‌دار برای مرکبات و گل‌ها'
+  },
+  wood_brown: {
+    id: 'wood_brown',
+    nameFa: 'قهوه‌ای چوب گردو و بلوط',
+    shortNameFa: 'چوب گردو',
+    nameEn: 'Walnut & Teak Wood',
+    baseHex: '#8B5A2B',
+    shadowHex: '#5C3A1B',
+    highlightHex: '#A87442',
+    rimHex: '#996535',
+    insideHex: '#3D2510',
+    texture: 'wood_grain',
+    heatAbsorption: 'medium',
+    styleNote: 'عایق حرارتی طبیعی برای ریشه در برابر سرما و گرما؛ عالی برای سرخس‌ها و ارکیده‌ها'
+  },
+  grey: {
+    id: 'grey',
+    nameFa: 'طوسی سنگی خنثی',
+    shortNameFa: 'طوسی سنگی',
+    nameEn: 'Neutral Stone Grey',
+    baseHex: '#94A3B8',
+    shadowHex: '#64748B',
+    highlightHex: '#CBD5E1',
+    rimHex: '#B0BECF',
+    insideHex: '#475569',
+    texture: 'matte',
+    heatAbsorption: 'medium',
+    styleNote: 'رنگ خنثی که تمرکز بصری را ۱۰۰٪ روی فرم هندسی برگ‌های گیاه نگه می‌دارد'
+  },
+  concrete: {
+    id: 'concrete',
+    nameFa: 'طوسی بتنی بافت‌دار',
+    shortNameFa: 'بتنی',
+    nameEn: 'Architectural Raw Concrete',
+    baseHex: '#8A9199',
+    shadowHex: '#5B6168',
+    highlightHex: '#ADB4BC',
+    rimHex: '#989FA7',
+    insideHex: '#43484E',
+    texture: 'concrete_grain',
+    heatAbsorption: 'medium',
+    styleNote: 'بافت منفذدار سیمانی و سنگین برای پایداری بالای گیاهان ستونی، یوکا و سانسوریا'
+  },
+  charcoal: {
+    id: 'charcoal',
+    nameFa: 'ذغالی مات مدرن',
+    shortNameFa: 'ذغالی',
+    nameEn: 'Matte Anthracite Charcoal',
+    baseHex: '#334155',
+    shadowHex: '#1E293B',
+    highlightHex: '#475569',
+    rimHex: '#3E4C63',
+    insideHex: '#0F172A',
+    texture: 'matte',
+    heatAbsorption: 'high',
+    styleNote: 'ایجاد بالاترین کنتراست نوری برای گیاهان نئونی، ابلق سفید، طلایی و بونسای‌ها'
+  },
+  black: {
+    id: 'black',
+    nameFa: 'مشکی مات اونیکس',
+    shortNameFa: 'مشکی مات',
+    nameEn: 'Matte Onyx Black',
+    baseHex: '#1E2024',
+    shadowHex: '#0B0C0E',
+    highlightHex: '#383C42',
+    rimHex: '#282B30',
+    insideHex: '#050607',
+    texture: 'matte',
+    heatAbsorption: 'high',
+    styleNote: 'جذب گرمای محیط برای گرم نگه داشتن ریشه گیاهان استوایی کلکسیونی در داخل خانه'
   }
 };
 
-// تشخیص هوشمند مدل گلدان در صورتی که به کامپوننت پاس داده نشده باشد
-const resolveEffectivePotShape = (shape: string, explicitPotShape?: PotShapeType): PotShapeType => {
-  if (explicitPotShape) return explicitPotShape;
-  if (shape === 'combo_trough' || shape === 'combo_trough_2') return 'trough_fluted';
-  if (shape === 'christmas_cactus' || shape === 'climbing_rose' || shape === 'rose_bush') {
-    return 'chalice_urn';
+export const POT_MODELS_CATALOG: Record<string, PotModelMetadata> = {
+  round_smooth: {
+    id: 'round_smooth',
+    nameFa: 'گرد ساده کلاسیک',
+    shortNameFa: 'گرد ساده',
+    nameEn: 'Classic Smooth Round',
+    category: 'classic',
+    depthProfile: 'medium',
+    stabilityScore: 8,
+    moistureRetention: 'medium',
+    bestForDescription: 'مناسب برای ۸۰٪ گیاهان آپارتمانی بوته‌ای با ریشه متوسط مانند آگلونما، شفلرا و شمعدانی',
+    dimensionsRatio: { topWidth: 38, bottomWidth: 26, height: 32 }
+  },
+  cylinder_modern: {
+    id: 'cylinder_modern',
+    nameFa: 'استوانه‌ای مدرن با زیرگلدانی',
+    shortNameFa: 'استوانه‌ای',
+    nameEn: 'Architectural Cylinder',
+    category: 'modern',
+    depthProfile: 'deep',
+    stabilityScore: 9,
+    moistureRetention: 'high',
+    bestForDescription: 'تکیه‌گاه عالی برای گیاهان عمودی و کشیده مانند سانسوریا، مانسترا، آلوکازیا و دراسنا',
+    dimensionsRatio: { topWidth: 34, bottomWidth: 34, height: 34 }
+  },
+  bowl_saucer: {
+    id: 'bowl_saucer',
+    nameFa: 'کاسه‌ای کم‌عمق (دیش‌گاردن)',
+    shortNameFa: 'کاسه‌ای',
+    nameEn: 'Shallow Pan Bowl',
+    category: 'specialty',
+    depthProfile: 'shallow',
+    stabilityScore: 10,
+    moistureRetention: 'low',
+    bestForDescription: 'خشک شدن سریع بستر برای گیاهان دارای ریشه سطحی مثل ساکولنت‌ها، بنفشه آفریقایی و فیتونیا',
+    dimensionsRatio: { topWidth: 44, bottomWidth: 28, height: 22 }
+  },
+  conical_tall: {
+    id: 'conical_tall',
+    nameFa: 'مخروطی بلند لابی',
+    shortNameFa: 'مخروطی بلند',
+    nameEn: 'Tall Tapered Conical',
+    category: 'architectural',
+    depthProfile: 'deep',
+    stabilityScore: 8,
+    moistureRetention: 'medium',
+    bestForDescription: 'مناسب گیاهان دارای ریشه عمیق و غده‌ای مانند زامیفولیا، یوکا، نخل اریکا و فیکوس الاستیکا',
+    dimensionsRatio: { topWidth: 36, bottomWidth: 22, height: 36 }
+  },
+  square_minimal: {
+    id: 'square_minimal',
+    nameFa: 'چهارگوش مکعبی مینیمال',
+    shortNameFa: 'چهارگوش ساده',
+    nameEn: 'Minimalist Cube',
+    category: 'modern',
+    depthProfile: 'medium',
+    stabilityScore: 10,
+    moistureRetention: 'high',
+    bestForDescription: 'حجم خاک ۲۰٪ بیشتر نسبت به گلدان گرد هم‌عرض و پایداری کامل برای شمشاد و هاورتیا',
+    dimensionsRatio: { topWidth: 36, bottomWidth: 32, height: 32 }
+  },
+  round_ribbed: {
+    id: 'round_ribbed',
+    nameFa: 'گرد شیاردار عمودی',
+    shortNameFa: 'گرد شیاردار',
+    nameEn: 'Fluted Ribbed Round',
+    category: 'modern',
+    depthProfile: 'medium',
+    stabilityScore: 8,
+    moistureRetention: 'medium',
+    bestForDescription: 'ایجاد خطای دید عمودی و زیبایی بصری برای گیاهان برگ‌پهن مثل فیکوس بلک، پپرومیا و برگ‌عبایی',
+    dimensionsRatio: { topWidth: 38, bottomWidth: 28, height: 32 }
+  },
+  faceted_gem: {
+    id: 'faceted_gem',
+    nameFa: 'الماسی چندوجهی هندسی',
+    shortNameFa: 'الماسی',
+    nameEn: 'Origami Faceted Gem',
+    category: 'modern',
+    depthProfile: 'medium',
+    stabilityScore: 9,
+    moistureRetention: 'medium',
+    bestForDescription: 'طراحی اوریگامی شکسته‌کننده نور، ایده‌آل برای گیاهان کلکسیونی خاص مانند زامیفولیا ابلق و آستروفیتوم',
+    dimensionsRatio: { topWidth: 36, bottomWidth: 24, height: 32 }
+  },
+  square_patterned: {
+    id: 'square_patterned',
+    nameFa: 'چهارگوش طرح‌دار برجسته',
+    shortNameFa: 'چهارگوش طرح‌دار',
+    nameEn: 'Embossed Geometric Square',
+    category: 'classic',
+    depthProfile: 'medium',
+    stabilityScore: 10,
+    moistureRetention: 'high',
+    bestForDescription: 'مناسب تراس‌ها و ورودی‌ها برای کاشت رز درختچه‌ای، کامکوات و درختچه‌های زینتی',
+    dimensionsRatio: { topWidth: 38, bottomWidth: 30, height: 33 }
+  },
+  chalice_urn: {
+    id: 'chalice_urn',
+    nameFa: 'جامی پایه‌دار سلطنتی',
+    shortNameFa: 'جامی پایه‌دار',
+    nameEn: 'Pedestal Chalice Urn',
+    category: 'classic',
+    depthProfile: 'medium',
+    stabilityScore: 8,
+    moistureRetention: 'medium',
+    bestForDescription: 'بالا بردن ارتفاع نمایشی تاج گیاه برای فیکوس لیراتا، نخل کنتیا، گل رز و گاردنیا',
+    dimensionsRatio: { topWidth: 40, bottomWidth: 26, height: 36 }
+  },
+  trough_fluted: {
+    id: 'trough_fluted',
+    nameFa: 'مستطیلی کشیده (فلاورباکس)',
+    shortNameFa: 'مستطیلی',
+    nameEn: 'Fluted Rectangular Trough',
+    category: 'architectural',
+    depthProfile: 'medium',
+    stabilityScore: 10,
+    moistureRetention: 'high',
+    bestForDescription: 'ایجاد دیوار سبز با گیاهان رونده، دیش‌گاردن ساکولنت، رز رونده و سبزیجات معطر',
+    dimensionsRatio: { topWidth: 52, bottomWidth: 46, height: 28 }
+  },
+  hanging_basket: {
+    id: 'hanging_basket',
+    nameFa: 'سبد آویز با بند مکرمه',
+    shortNameFa: 'سبد آویز',
+    nameEn: 'Suspended Hanging Planter',
+    category: 'hanging',
+    depthProfile: 'medium',
+    stabilityScore: 9,
+    moistureRetention: 'low',
+    bestForDescription: 'آزادسازی فضای رشد آبشاری برای پتوس، برگ‌بیدی، سرخس بوستون، رشته مروارید و اطلسی',
+    dimensionsRatio: { topWidth: 38, bottomWidth: 22, height: 26 }
+  },
+  bonsai_tray: {
+    id: 'bonsai_tray',
+    nameFa: 'سینی بونسای پایه‌دار شرقی',
+    shortNameFa: 'سینی بونسای',
+    nameEn: 'Traditional Bonsai Tray',
+    category: 'specialty',
+    depthProfile: 'shallow',
+    stabilityScore: 10,
+    moistureRetention: 'low',
+    bestForDescription: 'کنترل رشد طولی ریشه و نمایش ریشه‌های هوایی برای انواع بونسای، سیکاس، لیندا و آدنیوم',
+    dimensionsRatio: { topWidth: 48, bottomWidth: 42, height: 18 }
+  },
+  amphora_clay: {
+    id: 'amphora_clay',
+    nameFa: 'خمره‌ای سفالی شکم‌دار',
+    shortNameFa: 'خمره‌ای',
+    nameEn: 'Mediterranean Belly Amphora',
+    category: 'classic',
+    depthProfile: 'deep',
+    stabilityScore: 9,
+    moistureRetention: 'medium',
+    bestForDescription: 'حفظ خنکی ریشه در بخش شکم‌دار میانی؛ عالی برای کراسولا، شفلرا و فلفل زینتی',
+    dimensionsRatio: { topWidth: 32, bottomWidth: 24, height: 34 }
+  },
+  hexagon_concrete: {
+    id: 'hexagon_concrete',
+    nameFa: 'شش‌ضلعی بتنی مدرن',
+    shortNameFa: 'شش‌ضلعی',
+    nameEn: 'Hexagonal Brutalist Planter',
+    category: 'architectural',
+    depthProfile: 'medium',
+    stabilityScore: 10,
+    moistureRetention: 'medium',
+    bestForDescription: 'فرم لانه‌زنبوری سنگین و ضدواژگونی برای کاکتوس‌های ستونی، آگاو و سانسوریا لوله‌ای',
+    dimensionsRatio: { topWidth: 38, bottomWidth: 32, height: 32 }
+  },
+  wood_stand_modern: {
+    id: 'wood_stand_modern',
+    nameFa: 'استوانه‌ای پایه‌دار چوبی',
+    shortNameFa: 'پایه‌دار چوبی',
+    nameEn: 'Mid-Century Wood Stand Planter',
+    category: 'modern',
+    depthProfile: 'medium',
+    stabilityScore: 8,
+    moistureRetention: 'high',
+    bestForDescription: 'دور کردن کف گلدان از سرمای سنگ در زمستان؛ ایده‌آل برای برگ‌انجیری، فیلودندرون و کالاتیا',
+    dimensionsRatio: { topWidth: 34, bottomWidth: 34, height: 36 }
+  },
+  egg_planter: {
+    id: 'egg_planter',
+    nameFa: 'تخم‌مرغی منحنی مدرن',
+    shortNameFa: 'تخم‌مرغی',
+    nameEn: 'Curved Ovoid Egg Planter',
+    category: 'modern',
+    depthProfile: 'deep',
+    stabilityScore: 8,
+    moistureRetention: 'high',
+    bestForDescription: 'جلوگیری از شکستن ریشه‌های چرخشی در گوشه‌ها؛ مناسب نخل شامادورا، اسپاتی‌فیلوم و آلوکازیا',
+    dimensionsRatio: { topWidth: 34, bottomWidth: 22, height: 34 }
+  },
+  footed_cauldron: {
+    id: 'footed_cauldron',
+    nameFa: 'دیگی سه‌پایه مینیاتوری',
+    shortNameFa: 'دیگی سه‌پایه',
+    nameEn: 'Tripod Footed Cauldron',
+    category: 'specialty',
+    depthProfile: 'shallow',
+    stabilityScore: 9,
+    moistureRetention: 'medium',
+    bestForDescription: 'تخلیه عالی آب از زهکش به لطف پایه‌های یکپارچه؛ مناسب هاورتیا، پپرومیا و برگ‌خونین',
+    dimensionsRatio: { topWidth: 36, bottomWidth: 28, height: 28 }
+  },
+  lotus_scalloped: {
+    id: 'lotus_scalloped',
+    nameFa: 'نیلوفری کنگره‌دار',
+    shortNameFa: 'نیلوفری',
+    nameEn: 'Scalloped Lotus Bowl',
+    category: 'classic',
+    depthProfile: 'medium',
+    stabilityScore: 8,
+    moistureRetention: 'medium',
+    bestForDescription: 'لبه‌های دالبری گلبرگ‌مانند که با گیاهان گلدار و رزت مانند سیکلامن، گلوکسینیا و اچوریا هماهنگ می‌شود',
+    dimensionsRatio: { topWidth: 40, bottomWidth: 24, height: 30 }
+  },
+  tiered_pagoda: {
+    id: 'tiered_pagoda',
+    nameFa: 'پله‌ای طبقاتی مدرن',
+    shortNameFa: 'پله‌ای',
+    nameEn: 'Stepped Architectural Tier',
+    category: 'architectural',
+    depthProfile: 'medium',
+    stabilityScore: 9,
+    moistureRetention: 'medium',
+    bestForDescription: 'فرم پله‌ای مدرن برای گیاهان دارای ساختار هندسی مانند کراسولا معبد بودا، افوربیا و بامبو',
+    dimensionsRatio: { topWidth: 38, bottomWidth: 24, height: 34 }
+  },
+  woven_belly: {
+    id: 'woven_belly',
+    nameFa: 'حصیری شکم‌دار بوهو',
+    shortNameFa: 'حصیری بوهو',
+    nameEn: 'Boho Woven Seagrass Belly',
+    category: 'specialty',
+    depthProfile: 'deep',
+    stabilityScore: 8,
+    moistureRetention: 'low',
+    bestForDescription: 'کاور دکوراتیو سبک بوهمین با تهویه هوای عالی برای نخل راپیس، باباآدم، فیکوس الاستیکا و شفلرا',
+    dimensionsRatio: { topWidth: 34, bottomWidth: 28, height: 32 }
   }
-  if (shape === 'sansevieria') return 'square_patterned';
-  if (shape === 'aglaonema' || shape === 'zz' || shape === 'sedum' || shape === 'dieffenbachia') {
-    return 'faceted_gem';
-  }
-  if (shape === 'dracaena' || shape === 'tradescantia') return 'cylinder_modern';
-  return 'round_ribbed';
 };
+
+// تشخیص هوشمند مدل گلدان در صورت عدم تعیین مستقیم
+const resolveEffectivePotShape = (
+  shape: string,
+  explicitPotShape?: PotShapeType | string
+): PotShapeType => {
+  if (explicitPotShape) {
+    if (explicitPotShape === 'round') return 'round_smooth';
+    if (explicitPotShape === 'hex') return 'faceted_gem';
+    if (explicitPotShape === 'trough') return 'trough_fluted';
+    return explicitPotShape as PotShapeType;
+  }
+  if (shape === 'combo_trough' || shape === 'combo_trough_2' || shape === 'dish_garden_succulent') {
+    return 'trough_fluted';
+  }
+  if (shape.startsWith('bonsai_') || shape === 'ficus_ginseng' || shape === 'pine_nana') {
+    return 'bonsai_tray';
+  }
+  if (shape.startsWith('pothos_') || shape.startsWith('string_of_')) {
+    return 'hanging_basket';
+  }
+  if (shape.startsWith('sansevieria_') || shape.startsWith('zz_') || shape.startsWith('alocasia_')) {
+    return 'cylinder_modern';
+  }
+  return 'round_smooth';
+};
+
+// ============================================================================
+// ۳. رندرکننده برداری ۲۰ مدل گلدان و ۶ بافت سطحی (PotVectorGraphic)
+// ============================================================================
+
+export const PotVectorGraphic: React.FC<{
+  shape: PotShapeType | string;
+  color: PotColorType | string;
+}> = ({ shape, color }) => {
+  const uid = useId().replace(/:/g, '');
+  const palette = POT_COLOR_PALETTE[color] || POT_COLOR_PALETTE.white;
+  const gradId = `pot-grad-${uid}`;
+  const rimGradId = `rim-grad-${uid}`;
+
+  const renderTextureOverlay = () => {
+    switch (palette.texture) {
+      case 'terrazzo_speckled':
+        return (
+          <g opacity="0.65" pointerEvents="none">
+            <polygon points="38,62 41,60 42,63" fill="#C86D51" />
+            <polygon points="58,66 61,65 60,68" fill="#64748B" />
+            <polygon points="46,72 49,71 48,74" fill="#94A3B8" />
+            <polygon points="53,59 55,61 52,62" fill="#B59672" />
+            <polygon points="42,78 45,77 44,80" fill="#475569" />
+            <polygon points="56,76 59,75 58,79" fill="#C86D51" />
+            <circle cx="48" cy="65" r="1.2" fill="#739584" />
+            <circle cx="62" cy="72" r="1" fill="#B59672" />
+            <circle cx="36" cy="71" r="1.1" fill="#64748B" />
+          </g>
+        );
+      case 'concrete_grain':
+        return (
+          <g opacity="0.28" pointerEvents="none">
+            <circle cx="39" cy="63" r="0.7" fill={palette.shadowHex} />
+            <circle cx="44" cy="75" r="0.9" fill={palette.shadowHex} />
+            <circle cx="57" cy="68" r="0.6" fill={palette.shadowHex} />
+            <circle cx="61" cy="77" r="0.8" fill={palette.shadowHex} />
+            <circle cx="49" cy="61" r="0.5" fill={palette.highlightHex} />
+            <circle cx="53" cy="79" r="0.7" fill={palette.shadowHex} />
+            <path d="M36,70 Q42,71 45,69" stroke={palette.shadowHex} strokeWidth="0.4" fill="none" />
+          </g>
+        );
+      case 'porous_clay':
+        return (
+          <g opacity="0.18" pointerEvents="none">
+            <path d="M35,64 Q50,66 65,64" stroke={palette.highlightHex} strokeWidth="0.6" fill="none" />
+            <path d="M37,74 Q50,76 63,74" stroke={palette.shadowHex} strokeWidth="0.5" fill="none" />
+          </g>
+        );
+      case 'wood_grain':
+        return (
+          <g opacity="0.25" pointerEvents="none" stroke={palette.shadowHex} strokeWidth="0.7" fill="none">
+            <path d="M36,58 Q39,70 37,82" />
+            <path d="M45,58 Q48,68 44,82" />
+            <path d="M55,58 Q52,71 56,82" />
+            <path d="M63,58 Q60,69 62,82" />
+          </g>
+        );
+      case 'glossy':
+        return (
+          <path
+            d="M36,59 Q34,70 38,81"
+            stroke="#FFFFFF"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            fill="none"
+            opacity="0.38"
+            pointerEvents="none"
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderPotGeometry = () => {
+    switch (shape) {
+      case 'round_ribbed':
+        return (
+          <g>
+            <ellipse cx="50" cy="85" rx="16" ry="2.5" fill="rgba(0,0,0,0.16)" />
+            <ellipse cx="50" cy="54" rx="19" ry="3.8" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="17.5" ry="3" fill="#3E2723" />
+            <path
+              d="M31,54 C31,67 34,79 36,84 C38,85.8 62,85.8 64,84 C66,79 69,67 69,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            <g stroke={palette.shadowHex} strokeWidth="0.85" opacity="0.55" fill="none">
+              <path d="M35,55.5 L38.5,84.2" />
+              <path d="M39,56.2 L41.5,84.8" />
+              <path d="M43,56.8 L44.5,85.1" />
+              <path d="M47,57.1 L47.8,85.3" />
+              <path d="M50,57.2 L50,85.4" />
+              <path d="M53,57.1 L52.2,85.3" />
+              <path d="M57,56.8 L55.5,85.1" />
+              <path d="M61,56.2 L58.5,84.8" />
+              <path d="M65,55.5 L61.5,84.2" />
+            </g>
+            {renderTextureOverlay()}
+            <path
+              d="M30.5,54 A19.5,3.6 0 0,0 69.5,54 L69.5,55.8 A19.5,3.6 0 0,1 30.5,55.8 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'cylinder_modern':
+        return (
+          <g>
+            <ellipse cx="50" cy="85.5" rx="18" ry="2.5" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="17" ry="3.2" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="15.8" ry="2.6" fill="#3E2723" />
+            <path
+              d="M33,54 L33,82.5 A17,2.8 0 0,0 67,82.5 L67,54 A17,3.2 0 0,1 33,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M32.5,81.5 L32.5,84.2 A17.5,2.8 0 0,0 67.5,84.2 L67.5,81.5 A17.5,2.8 0 0,1 32.5,81.5 Z"
+              fill={palette.shadowHex}
+            />
+            <path
+              d="M33,54 A17,3.2 0 0,0 67,54 L67,55.4 A17,3.2 0 0,1 33,55.4 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'bowl_saucer':
+        return (
+          <g>
+            <ellipse cx="50" cy="76.5" rx="17" ry="2.2" fill="rgba(0,0,0,0.16)" />
+            <ellipse cx="50" cy="54" rx="22" ry="4.2" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.6" rx="20.5" ry="3.4" fill="#3E2723" />
+            <path
+              d="M28,54 C28,65 34,73 39,75.5 C42,76.8 58,76.8 61,75.5 C66,73 72,65 72,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M27.5,54 A22.5,4.2 0 0,0 72.5,54 L72.5,56 A22.5,4.2 0 0,1 27.5,56 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'conical_tall':
+        return (
+          <g>
+            <ellipse cx="50" cy="87" rx="13" ry="2" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="18" ry="3.4" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="16.5" ry="2.8" fill="#3E2723" />
+            <path
+              d="M32,54 L39,85.5 C41,87 59,87 61,85.5 L68,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M31.5,54 A18.5,3.4 0 0,0 68.5,54 L68.5,55.8 A18.5,3.4 0 0,1 31.5,55.8 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'square_minimal':
+        return (
+          <g>
+            <polygon points="33,84 50,87.5 67,84 50,81" fill="rgba(0,0,0,0.18)" />
+            <polygon points="32,54 50,50.5 68,54 50,57.5" fill={palette.insideHex} />
+            <polygon points="34,54 50,51.2 66,54 50,56.8" fill="#3E2723" />
+            <polygon points="32,54 50,57.5 50,86 34,82.5" fill={palette.baseHex} />
+            <polygon points="68,54 50,57.5 50,86 66,82.5" fill={palette.shadowHex} />
+            {renderTextureOverlay()}
+            <polyline
+              points="32,54 50,57.5 68,54"
+              stroke={palette.highlightHex}
+              strokeWidth="1.2"
+              fill="none"
+            />
+          </g>
+        );
+
+      case 'square_patterned':
+        return (
+          <g>
+            <polygon points="33,84 50,87.5 67,84 50,81" fill="rgba(0,0,0,0.18)" />
+            <polygon points="31,54 50,50.5 69,54 50,57.5" fill={palette.insideHex} />
+            <polygon points="33,54 50,51.2 67,54 50,56.8" fill="#3E2723" />
+            <polygon points="31,54 50,57.5 50,86 34,82.5" fill={palette.baseHex} />
+            <polygon points="69,54 50,57.5 50,86 66,82.5" fill={palette.shadowHex} />
+            <polygon
+              points="35,61 47,63.5 47,79 36.5,76.5"
+              fill="none"
+              stroke={palette.shadowHex}
+              strokeWidth="1"
+            />
+            <polygon
+              points="65,61 53,63.5 53,79 63.5,76.5"
+              fill="none"
+              stroke={palette.baseHex}
+              strokeWidth="1"
+              opacity="0.6"
+            />
+            {renderTextureOverlay()}
+            <polygon points="30,53.5 50,57.2 70,53.5 70,55.5 50,59.2 30,55.5" fill={`url(#${rimGradId})`} />
+          </g>
+        );
+
+      case 'faceted_gem':
+        return (
+          <g>
+            <ellipse cx="50" cy="85.5" rx="14" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <polygon points="32,54 42,51 58,51 68,54 58,57 42,57" fill={palette.insideHex} />
+            <polygon points="34,54 43,51.6 57,51.6 66,54 57,56.4 43,56.4" fill="#3E2723" />
+            <polygon points="32,54 42,57 38,70 30,68" fill={palette.highlightHex} />
+            <polygon points="42,57 58,57 50,72" fill={palette.baseHex} />
+            <polygon points="58,57 68,54 70,68 62,70" fill={palette.shadowHex} />
+            <polygon points="42,57 50,72 38,70" fill={palette.baseHex} opacity="0.9" />
+            <polygon points="58,57 62,70 50,72" fill={palette.shadowHex} opacity="0.85" />
+            <polygon points="30,68 38,70 38,84" fill={palette.baseHex} />
+            <polygon points="38,70 50,72 50,85.5 38,84" fill={palette.highlightHex} opacity="0.92" />
+            <polygon points="50,72 62,70 62,84 50,85.5" fill={palette.baseHex} />
+            <polygon points="62,70 70,68 62,84" fill={palette.shadowHex} />
+            {renderTextureOverlay()}
+          </g>
+        );
+
+      case 'chalice_urn':
+        return (
+          <g>
+            <ellipse cx="50" cy="86.5" rx="15" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="20" ry="3.8" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.6" rx="18.2" ry="3" fill="#3E2723" />
+            <path
+              d="M30,54 C30,66 37,72 45,74 L46,81 L37,84 L37,86.5 L63,86.5 L63,84 L54,81 L55,74 C63,72 70,66 70,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            <ellipse cx="50" cy="74.5" rx="6.5" ry="1.6" fill={palette.shadowHex} />
+            {renderTextureOverlay()}
+            <path
+              d="M29,54 A21,3.8 0 0,0 71,54 L71,56.4 A21,3.8 0 0,1 29,56.4 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'trough_fluted':
+        return (
+          <g>
+            <ellipse cx="50" cy="83.5" rx="26" ry="2.5" fill="rgba(0,0,0,0.16)" />
+            <polygon points="24,54 30,51 76,51 72,56.5 24,56.5" fill={palette.insideHex} />
+            <polygon points="26,54.2 31,51.8 74,51.8 70,56 26,56" fill="#3E2723" />
+            <polygon points="24,55 71,55 69,82.5 26,82.5" fill={`url(#${gradId})`} />
+            <polygon points="71,55 76,51.5 74,79 69,82.5" fill={palette.shadowHex} />
+            <g stroke={palette.shadowHex} strokeWidth="0.8" opacity="0.5">
+              <line x1="32" y1="56" x2="33" y2="82" />
+              <line x1="40" y1="56" x2="40.5" y2="82" />
+              <line x1="48" y1="56" x2="48" y2="82" />
+              <line x1="56" y1="56" x2="55.5" y2="82" />
+              <line x1="64" y1="56" x2="63" y2="82" />
+            </g>
+            {renderTextureOverlay()}
+            <rect x="23.5" y="53.8" width="48" height="2.4" rx="0.8" fill={`url(#${rimGradId})`} />
+          </g>
+        );
+
+      case 'hanging_basket':
+        return (
+          <g>
+            <g stroke="#A89886" strokeWidth="1.1" opacity="0.85">
+              <line x1="50" y1="4" x2="31" y2="54" />
+              <line x1="50" y1="4" x2="69" y2="54" />
+              <line x1="50" y1="4" x2="45" y2="56" />
+            </g>
+            <circle cx="50" cy="4" r="2.2" fill="none" stroke="#786856" strokeWidth="1.3" />
+            <ellipse cx="50" cy="54" rx="19.5" ry="3.8" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="18" ry="3" fill="#3E2723" />
+            <path
+              d="M30.5,54 C30.5,68 38,77 50,77 C62,77 69.5,68 69.5,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M30,54 A20,3.8 0 0,0 70,54 L70,56 A20,3.8 0 0,1 30,56 Z"
+              fill={`url(#${rimGradId})`}
+            />
+            <path d="M47,77 L50,84 L53,77 Z" fill="#A89886" />
+          </g>
+        );
+
+      case 'bonsai_tray':
+        return (
+          <g>
+            <ellipse cx="50" cy="73" rx="23" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <polygon points="25,54 31,50.5 75,50.5 69,56.5 25,56.5" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54" rx="21" ry="3.2" fill="#3E2723" />
+            <path d="M25,54.5 L28,67.5 L72,67.5 L75,54.5 Z" fill={`url(#${gradId})`} />
+            <path d="M30,67.5 L31,72 L36,72 L37,67.5 Z" fill={palette.shadowHex} />
+            <path d="M63,67.5 L64,72 L69,72 L70,67.5 Z" fill={palette.shadowHex} />
+            {renderTextureOverlay()}
+            <rect x="24" y="53.5" width="52" height="2.3" rx="0.8" fill={`url(#${rimGradId})`} />
+          </g>
+        );
+
+      case 'amphora_clay':
+        return (
+          <g>
+            <ellipse cx="50" cy="86" rx="14" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="16" ry="3.2" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="14.5" ry="2.6" fill="#3E2723" />
+            <path
+              d="M34,54 C26,63 27,76 38,85 C41,86.5 59,86.5 62,85 C73,76 74,63 66,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            <path
+              d="M33,57 C29,57 29,64 32,65"
+              stroke={palette.shadowHex}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <path
+              d="M67,57 C71,57 71,64 68,65"
+              stroke={palette.shadowHex}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M33,54 A17,3.2 0 0,0 67,54 L67,56.2 A17,3.2 0 0,1 33,56.2 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'hexagon_concrete':
+        return (
+          <g>
+            <ellipse cx="50" cy="85.5" rx="16" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <polygon points="31,54 40,51 60,51 69,54 60,57 40,57" fill={palette.insideHex} />
+            <polygon points="33,54 41,51.6 59,51.6 67,54 59,56.4 41,56.4" fill="#3E2723" />
+            <polygon points="31,54 40,57 41,84.5 34,81.5" fill={palette.highlightHex} />
+            <polygon points="40,57 60,57 59,84.5 41,84.5" fill={palette.baseHex} />
+            <polygon points="60,57 69,54 66,81.5 59,84.5" fill={palette.shadowHex} />
+            {renderTextureOverlay()}
+          </g>
+        );
+
+      case 'wood_stand_modern':
+        return (
+          <g>
+            <ellipse cx="50" cy="87" rx="17" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <rect x="33" y="65" width="3.2" height="21.5" rx="1.2" fill="#7C4D25" />
+            <rect x="63.8" y="65" width="3.2" height="21.5" rx="1.2" fill="#5C3818" />
+            <rect x="48.5" y="75" width="3" height="12" rx="1" fill="#4A2C11" />
+            <rect x="34" y="76" width="32" height="2.8" fill="#6E421F" />
+            <ellipse cx="50" cy="54" rx="16.5" ry="3.2" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="15.2" ry="2.5" fill="#3E2723" />
+            <path
+              d="M33.5,54 L33.5,77.5 A16.5,2.8 0 0,0 66.5,77.5 L66.5,54 A16.5,3.2 0 0,1 33.5,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+          </g>
+        );
+
+      case 'egg_planter':
+        return (
+          <g>
+            <ellipse cx="50" cy="85.5" rx="13" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="17" ry="3.4" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="15.5" ry="2.7" fill="#3E2723" />
+            <path
+              d="M33,54 C29,66 33,80 41,85 C44,86.5 56,86.5 59,85 C67,80 71,66 67,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M33,54 A17,3.4 0 0,0 67,54 L67,55.5 A17,3.4 0 0,1 33,55.5 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'footed_cauldron':
+        return (
+          <g>
+            <ellipse cx="50" cy="84.5" rx="15" ry="2.2" fill="rgba(0,0,0,0.16)" />
+            <path d="M37,76 L35,84 L39,84 L41,77 Z" fill={palette.shadowHex} />
+            <path d="M63,76 L65,84 L61,84 L59,77 Z" fill={palette.shadowHex} />
+            <path d="M48.5,78 L48.5,84.5 L51.5,84.5 L51.5,78 Z" fill={palette.shadowHex} />
+            <ellipse cx="50" cy="54" rx="18" ry="3.5" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="16.5" ry="2.8" fill="#3E2723" />
+            <path
+              d="M32,54 C30,66 35,78 50,78 C65,78 70,66 68,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M31.5,54 A18.5,3.5 0 0,0 68.5,54 L68.5,55.6 A18.5,3.5 0 0,1 31.5,55.6 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'lotus_scalloped':
+        return (
+          <g>
+            <ellipse cx="50" cy="85" rx="14" ry="2.2" fill="rgba(0,0,0,0.16)" />
+            <ellipse cx="50" cy="54" rx="20" ry="3.8" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.6" rx="18.2" ry="3" fill="#3E2723" />
+            <path
+              d="M30,54 C31,68 35,79 39,84 C42,85.5 58,85.5 61,84 C65,79 69,68 70,54 Q65,57.5 60,54.5 Q55,58 50,55 Q45,58 40,54.5 Q35,57.5 30,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            <g stroke={palette.shadowHex} strokeWidth="0.7" opacity="0.45" fill="none">
+              <path d="M40,55 Q41,70 43,84.5" />
+              <path d="M50,55.5 L50,85" />
+              <path d="M60,55 Q59,70 57,84.5" />
+            </g>
+            {renderTextureOverlay()}
+          </g>
+        );
+
+      case 'tiered_pagoda':
+        return (
+          <g>
+            <ellipse cx="50" cy="85.5" rx="14" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="19" ry="3.5" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="17.5" ry="2.8" fill="#3E2723" />
+            <path d="M31,54 L32.5,64 L67.5,64 L69,54 Z" fill={`url(#${gradId})`} />
+            <path d="M34.5,64 L36,74.5 L64,74.5 L65.5,64 Z" fill={`url(#${gradId})`} />
+            <path d="M38,74.5 L39.5,85 L60.5,85 L62,74.5 Z" fill={`url(#${gradId})`} />
+            <line x1="32.5" y1="64" x2="67.5" y2="64" stroke={palette.shadowHex} strokeWidth="1.2" />
+            <line x1="36" y1="74.5" x2="64" y2="74.5" stroke={palette.shadowHex} strokeWidth="1.2" />
+            {renderTextureOverlay()}
+            <path
+              d="M30.5,54 A19.5,3.5 0 0,0 69.5,54 L69.5,55.6 A19.5,3.5 0 0,1 30.5,55.6 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+
+      case 'woven_belly':
+        return (
+          <g>
+            <ellipse cx="50" cy="85.5" rx="15" ry="2.2" fill="rgba(0,0,0,0.18)" />
+            <ellipse cx="50" cy="54" rx="17" ry="3.4" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="15.5" ry="2.7" fill="#3E2723" />
+            <path
+              d="M33,54 L28,69 L36,84.5 C39,86 61,86 64,84.5 L72,69 L67,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            <line x1="28" y1="69" x2="72" y2="69" stroke={palette.shadowHex} strokeWidth="1.1" opacity="0.7" />
+            <g stroke={palette.shadowHex} strokeWidth="0.65" opacity="0.45" fill="none">
+              <path d="M32,59 L68,59" />
+              <path d="M30,64 L70,64" />
+              <path d="M31,74 L69,74" />
+              <path d="M34,79 L66,79" />
+              <path d="M38,55 L34,69 L39,84" />
+              <path d="M46,55 L44,69 L46,85" />
+              <path d="M54,55 L56,69 L54,85" />
+              <path d="M62,55 L66,69 L61,84" />
+            </g>
+            <path d="M32,54 C29,50 35,49 36,54" stroke={palette.shadowHex} strokeWidth="1.4" fill="none" />
+            <path d="M68,54 C71,50 65,49 64,54" stroke={palette.shadowHex} strokeWidth="1.4" fill="none" />
+          </g>
+        );
+
+      case 'round_smooth':
+      default:
+        return (
+          <g>
+            <ellipse cx="50" cy="85" rx="16" ry="2.5" fill="rgba(0,0,0,0.16)" />
+            <ellipse cx="50" cy="54" rx="19" ry="3.8" fill={palette.insideHex} />
+            <ellipse cx="50" cy="54.5" rx="17.5" ry="3" fill="#3E2723" />
+            <path
+              d="M31,54 C31,66 34,78 37,84 C39,85.8 61,85.8 63,84 C66,78 69,66 69,54 Z"
+              fill={`url(#${gradId})`}
+            />
+            {renderTextureOverlay()}
+            <path
+              d="M30,54 A20,3.8 0 0,0 70,54 L70,56.2 A20,3.8 0 0,1 30,56.2 Z"
+              fill={`url(#${rimGradId})`}
+            />
+          </g>
+        );
+    }
+  };
+
+  return (
+    <g>
+      <defs>
+        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="15%">
+          <stop offset="0%" stopColor={palette.highlightHex} />
+          <stop offset="35%" stopColor={palette.baseHex} />
+          <stop offset="100%" stopColor={palette.shadowHex} />
+        </linearGradient>
+        <linearGradient id={rimGradId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={palette.highlightHex} />
+          <stop offset="50%" stopColor={palette.rimHex} />
+          <stop offset="100%" stopColor={palette.shadowHex} />
+        </linearGradient>
+      </defs>
+      {renderPotGeometry()}
+    </g>
+  );
+};
+
+// ============================================================================
+// ۴. موتور گرافیکی شاخ‌وبرگ گیاهان (پشتیبانی کامل از تمام کلیدهای فاز ۱ تا ۱۲)
+// ============================================================================
 
 export const PlantStylizedIllustration: React.FC<{
   shape: string;
   potColor: PotColorType | string;
-  potShape?: PotShapeType;
+  potShape?: PotShapeType | string;
   plantName?: string;
   customSvgMarkup?: string;
-}> = ({ shape, potColor, potShape, plantName = '', customSvgMarkup }) => {
-  const palette = getPotPalette(potColor);
+}> = ({ shape, potColor, potShape, customSvgMarkup }) => {
   const effectivePotShape = resolveEffectivePotShape(shape, potShape);
 
-  // ۱. اگر کد SVG اختصاصی توسط هوش مصنوعی ذخیره شده باشد
   if (customSvgMarkup && customSvgMarkup.trim().startsWith('<svg')) {
     return (
       <div
@@ -173,768 +1230,700 @@ export const PlantStylizedIllustration: React.FC<{
     );
   }
 
-  // ۲. گلدان مستطیلی کنگره‌دار شماره ۱ (مشابه عکس ۴: مامیلاریا، کراسولا گولوم، آئونیوم بنفش و کراسولا یشم)
-  if (shape === 'combo_trough') {
-    return (
-      <svg className="w-26 h-23 drop-shadow-xs" viewBox="0 0 116 92" fill="none">
-        {/* بستر خاک و دانه‌های سفید پرلیت */}
-        <rect x="14" y="51" width="88" height="5" rx="2" fill="#6E5039" />
-        {[20, 29, 36, 44, 55, 64, 73, 82, 91, 97].map((px, idx) => (
-          <circle key={idx} cx={px} cy={53 + (idx % 2)} r="1.2" fill="#F4F1EA" opacity="0.9" />
-        ))}
-
-        {/* ۱. کاکتوس توپی مامیلاریا با خارهای سفید ستاره‌ای (سمت چپ) */}
-        <g>
-          <circle cx="25" cy="44" r="9.5" fill="#4D9057" stroke="#285932" strokeWidth="1.2" />
-          <circle cx="25" cy="44" r="6.5" fill="#5FA86A" stroke="#367041" strokeWidth="0.8" strokeDasharray="2 2" />
-          {[
-            [21, 39], [25, 38], [29, 39],
-            [20, 44], [25, 44], [30, 44],
-            [22, 49], [28, 49]
-          ].map(([cx, cy], i) => (
-            <g key={i}>
-              <circle cx={cx} cy={cy} r="0.9" fill="#FFFBEB" />
-              <path d={`M${cx - 1.5} ${cy}H${cx + 1.5}M${cx} ${cy - 1.5}V${cy + 1.5}`} stroke="#FEF3C7" strokeWidth="0.6" />
-            </g>
-          ))}
-        </g>
-
-        {/* ۲. کراسولا گولوم / لوله‌ای شاخ‌بزی با تنه چوبی (وسط-چپ) */}
-        <g>
-          <path d="M44 53V45" stroke="#8C6D53" strokeWidth="3.2" strokeLinecap="round" />
-          <path d="M44 46C40 42 38 36 39 32C41 32 43 38 44 45Z" fill="#40916C" stroke="#1B4332" strokeWidth="1" />
-          <path d="M44 45C44 38 43 30 45 27C47 30 47 38 44 45Z" fill="#52B788" stroke="#1B4332" strokeWidth="1" />
-          <path d="M44 46C47 41 50 36 49 31C47 31 45 38 44 46Z" fill="#40916C" stroke="#1B4332" strokeWidth="1" />
-          <ellipse cx="39.2" cy="32" rx="1.6" ry="1" fill="#D94E34" />
-          <ellipse cx="45" cy="27.2" rx="1.7" ry="1" fill="#D94E34" />
-          <ellipse cx="48.8" cy="31.2" rx="1.6" ry="1" fill="#D94E34" />
-        </g>
-
-        {/* ۳. ساکولنت آئونیوم بنفش/مشکی با مرکز سبز روشن (وسط-راست) */}
-        <g>
-          {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((deg) => (
-            <ellipse
-              key={deg}
-              cx="65"
-              cy="34"
-              rx="3.6"
-              ry="10"
-              transform={`rotate(${deg} 65 41)`}
-              fill="#4A2545"
-              stroke="#2D1429"
-              strokeWidth="0.9"
-            />
-          ))}
-          {[18, 78, 138, 198, 258, 318].map((deg) => (
-            <ellipse
-              key={deg}
-              cx="65"
-              cy="36.5"
-              rx="2.8"
-              ry="6.5"
-              transform={`rotate(${deg} 65 41)`}
-              fill="#6A3863"
-              stroke="#3D1E38"
-              strokeWidth="0.8"
-            />
-          ))}
-          <circle cx="65" cy="41" r="4.2" fill="#74C69D" />
-          <circle cx="65" cy="41" r="2" fill="#B7E4C7" />
-        </g>
-
-        {/* ۴. کراسولا خرفه‌ای / درختچه یشم با ساقه قهوه‌ای (سمت راست) */}
-        <g>
-          <path d="M88 53L90 36M90 42L84 37M90 39L96 34" stroke="#7F5539" strokeWidth="2.4" strokeLinecap="round" />
-          <ellipse cx="83" cy="36" rx="4.5" ry="2.6" transform="rotate(-20 83 36)" fill="#52B788" stroke="#2D6A4F" strokeWidth="1" />
-          <ellipse cx="96" cy="33" rx="4.5" ry="2.6" transform="rotate(20 96 33)" fill="#52B788" stroke="#2D6A4F" strokeWidth="1" />
-          <ellipse cx="87" cy="29" rx="4.8" ry="2.7" transform="rotate(-15 87 29)" fill="#74C69D" stroke="#2D6A4F" strokeWidth="1" />
-          <ellipse cx="94" cy="27" rx="4.5" ry="2.6" transform="rotate(18 94 27)" fill="#74C69D" stroke="#2D6A4F" strokeWidth="1" />
-          <ellipse cx="90" cy="23" rx="3.8" ry="2.2" fill="#95D5B2" stroke="#2D6A4F" strokeWidth="0.9" />
-        </g>
-
-        {/* بدنه گلدان مستطیلی کنگره‌دار سفید همراه با زیرگلدانی (مشابه عکس ۴) */}
-        <rect x="9" y="52" width="98" height="5.5" rx="2.7" fill={palette.fill} stroke={palette.stroke} strokeWidth="1.5" />
-        <path
-          d="M13 57.5H103L99 79C98.5 81 96.5 82 94.5 82H21.5C19.5 82 17.5 81 17 79L13 57.5Z"
-          fill={palette.fill}
-          stroke={palette.stroke}
-          strokeWidth="1.6"
-        />
-        {[22, 30, 38, 46, 54, 62, 70, 78, 86, 94].map((x) => (
-          <line key={x} x1={x} y1="58" x2={x + (x < 58 ? 1 : -1)} y2="81" stroke={palette.detail} strokeWidth="1.3" />
-        ))}
-        <rect x="12" y="81.5" width="92" height="4.5" rx="2.2" fill={palette.shade} stroke={palette.stroke} strokeWidth="1.3" />
-      </svg>
-    );
-  }
-
-  // ۳. گلدان مستطیلی کنگره‌دار شماره ۲ (مشابه عکس ۷: کراسولا، هاورتیا ببری، افوربیا ستونی و آئونیوم)
-  if (shape === 'combo_trough_2') {
-    return (
-      <svg className="w-26 h-23 drop-shadow-xs" viewBox="0 0 116 92" fill="none">
-        <rect x="14" y="51" width="88" height="5" rx="2" fill="#6E5039" />
-        {[22, 33, 45, 58, 70, 81, 93].map((px, idx) => (
-          <circle key={idx} cx={px} cy={53} r="1.2" fill="#F4F1EA" />
-        ))}
-
-        {/* ۱. کراسولا جوان (چپ) */}
-        <g>
-          <path d="M26 53V38" stroke="#6C584C" strokeWidth="2.2" />
-          <ellipse cx="22" cy="43" rx="4.5" ry="2.5" transform="rotate(-18 22 43)" fill="#52B788" stroke="#2D6A4F" strokeWidth="1" />
-          <ellipse cx="30" cy="41" rx="4.5" ry="2.5" transform="rotate(18 30 41)" fill="#52B788" stroke="#2D6A4F" strokeWidth="1" />
-          <ellipse cx="26" cy="36" rx="4.8" ry="2.6" fill="#74C69D" stroke="#2D6A4F" strokeWidth="1" />
-        </g>
-
-        {/* ۲. هاورتیا / آلوئه ببری خال‌دار (وسط-چپ) */}
-        <g>
-          <path d="M48 53L39 34L46 42L48 29L51 42L57 34L48 53Z" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.1" />
-          <path d="M43 39H53M45 44H51M46 48H50" stroke="#D8F3DC" strokeWidth="1.3" strokeDasharray="2 2" strokeLinecap="round" />
-        </g>
-
-        {/* ۳. افوربیا ستونی منشعب (وسط-راست) */}
-        <g>
-          <rect x="66" y="31" width="5.5" height="22" rx="2.5" fill="#40916C" stroke="#1B4332" strokeWidth="1.1" />
-          <path d="M66 41C61 40 60 36 61 33" stroke="#52B788" strokeWidth="4" strokeLinecap="round" />
-          <path d="M71.5 39C76 38 77 34 76 31" stroke="#52B788" strokeWidth="4" strokeLinecap="round" />
-        </g>
-
-        {/* ۴. ساکولنت آئونیوم رزت (راست) */}
-        <g>
-          <circle cx="91" cy="43" r="8" fill="#52B788" stroke="#2D6A4F" strokeWidth="1.1" />
-          <circle cx="91" cy="43" r="4.5" fill="#74C69D" stroke="#2D6A4F" strokeWidth="0.9" />
-          <circle cx="91" cy="43" r="1.8" fill="#D8F3DC" />
-        </g>
-
-        <rect x="9" y="52" width="98" height="5.5" rx="2.7" fill={palette.fill} stroke={palette.stroke} strokeWidth="1.5" />
-        <path
-          d="M13 57.5H103L99 79C98.5 81 96.5 82 94.5 82H21.5C19.5 82 17.5 81 17 79L13 57.5Z"
-          fill={palette.fill}
-          stroke={palette.stroke}
-          strokeWidth="1.6"
-        />
-        {[22, 30, 38, 46, 54, 62, 70, 78, 86, 94].map((x) => (
-          <line key={x} x1={x} y1="58" x2={x} y2="81" stroke={palette.detail} strokeWidth="1.3" />
-        ))}
-        <rect x="12" y="81.5" width="92" height="4.5" rx="2.2" fill={palette.shade} stroke={palette.stroke} strokeWidth="1.3" />
-      </svg>
-    );
-  }
-
-  // ۴. رندرکننده ۶ مدل واقعی گلدان (گرد شیاردار، الماسی چندوجهی، چهارگوش طرح‌دار، جامی پایه‌دار، استوانه‌ای مدرن)
-  const renderPotGeometry = () => {
-    switch (effectivePotShape) {
-      case 'chalice_urn':
-        // گلدان جامی پایه‌دار سلطنتی (مشابه عکس ۵ و ۶: گلدان رزها و کاکتوس کریسمس)
+  const renderPlantFoliage = () => {
+    switch (shape) {
+      // --- دیش‌گاردن‌های ترکیبی ---
+      case 'combo_trough':
+      case 'dish_garden_succulent':
         return (
           <g>
-            <ellipse cx="50" cy="54" rx="20" ry="3.2" fill="#5C4033" />
-            <rect x="28" y="52" width="44" height="4" rx="2" fill={palette.fill} stroke={palette.stroke} strokeWidth="1.5" />
-            <path
-              d="M31 56H69L64 71C63 74 58 75.5 50 75.5C42 75.5 37 74 36 71L31 56Z"
-              fill={palette.fill}
-              stroke={palette.stroke}
-              strokeWidth="1.6"
-            />
-            {[38, 44, 50, 56, 62].map((x) => (
-              <line key={x} x1={x} y1="56.5" x2={x + (50 - x) * 0.18} y2="74.5" stroke={palette.detail} strokeWidth="1.2" />
+            <circle cx="33" cy="46" r="7.5" fill="#4D9057" stroke="#285932" strokeWidth="1.1" />
+            <circle cx="33" cy="46" r="4.8" fill="#5FA86A" stroke="#367041" strokeWidth="0.7" strokeDasharray="2 2" />
+            <path d="M46 53V44" stroke="#8C6D53" strokeWidth="2.8" strokeLinecap="round" />
+            <path d="M46 45C42 41 41 36 42 32C44 32 45 38 46 44Z" fill="#40916C" stroke="#1B4332" strokeWidth="0.9" />
+            <path d="M46 44C46 37 45 31 47 28C49 31 49 37 46 44Z" fill="#52B788" stroke="#1B4332" strokeWidth="0.9" />
+            {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+              <ellipse
+                key={deg}
+                cx="59"
+                cy="38"
+                rx="3"
+                ry="8.5"
+                transform={`rotate(${deg} 59 43)`}
+                fill="#4A2545"
+                stroke="#2D1429"
+                strokeWidth="0.8"
+              />
             ))}
-            <path
-              d="M45 75.5H55L59 84H41L45 75.5Z"
-              fill={palette.shade}
-              stroke={palette.stroke}
-              strokeWidth="1.5"
-            />
-            <rect x="37" y="83.5" width="26" height="3.5" rx="1.7" fill={palette.fill} stroke={palette.stroke} strokeWidth="1.4" />
+            <circle cx="59" cy="43" r="3.2" fill="#74C69D" />
           </g>
         );
 
-      case 'faceted_gem':
-        // گلدان سفید طرح الماسی / چندوجهی هندسی (مشابه عکس ۱: آگلونما و کاج نانا لب پنجره)
+      case 'combo_trough_2':
         return (
           <g>
-            <ellipse cx="50" cy="54" rx="18" ry="2.8" fill="#5C4033" />
+            <path d="M35 53L28 37L34 44L36 33L39 44L44 37L35 53Z" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1" />
+            <rect x="49" y="33" width="5" height="20" rx="2.2" fill="#40916C" stroke="#1B4332" strokeWidth="1" />
+            <circle cx="64" cy="45" r="7" fill="#52B788" stroke="#2D6A4F" strokeWidth="1" />
+            <circle cx="64" cy="45" r="3.8" fill="#74C69D" />
+          </g>
+        );
+
+      // --- فاز ۱: سانسوریاها و زامیفولیاها ---
+      case 'sansevieria':
+      case 'sansevieria_sword_variegated':
+        return (
+          <g>
+            <path d="M50,54 L44,14 C43.5,12 45,10 47,12 L51,54 Z" fill="#2E7D32" stroke="#FBC02D" strokeWidth="1.2" />
+            <path d="M50,54 L56,10 C56.5,8 58,9 58.5,12 L53,54 Z" fill="#388E3C" stroke="#FBC02D" strokeWidth="1.2" />
+            <path d="M48,54 L38,20 C37,18 39,16 41,18 L49,54 Z" fill="#1B5E20" stroke="#FBC02D" strokeWidth="1" />
+            <path d="M52,54 L62,18 C63,16 64,18 63,20 L53,54 Z" fill="#2E7D32" stroke="#FBC02D" strokeWidth="1" />
+            <path d="M46,54 L32,28 C31,26 33,24 35,26 L47,54 Z" fill="#1B5E20" />
+            <path d="M54,54 L68,26 C69,24 71,26 69,28 L53,54 Z" fill="#388E3C" />
+          </g>
+        );
+      case 'sansevieria_moonshine':
+        return (
+          <g>
+            <path d="M50,54 L42,12 C41,10 44,8 46,11 L51,54 Z" fill="#90A4AE" stroke="#37474F" strokeWidth="0.8" />
+            <path d="M50,54 L58,11 C59,9 61,11 60,13 L51,54 Z" fill="#B0BEC5" stroke="#37474F" strokeWidth="0.8" />
+            <path d="M48,54 L36,18 C35,16 38,15 40,17 L49,54 Z" fill="#78909C" />
+            <path d="M52,54 L64,17 C65,15 67,17 65,19 L52,54 Z" fill="#90A4AE" />
+            <path d="M46,54 L30,26 C29,24 32,23 34,25 L47,54 Z" fill="#607D8B" />
+          </g>
+        );
+      case 'sansevieria_black_gold':
+        return (
+          <g>
+            <path d="M50,54 L44,11 C43.5,9 45,8 46.5,10 L51,54 Z" fill="#112218" stroke="#FFD700" strokeWidth="1.4" />
+            <path d="M50,54 L56,9 C56.5,7 58,8 58.5,10 L52,54 Z" fill="#0B1911" stroke="#FFD700" strokeWidth="1.4" />
+            <path d="M48,54 L37,17 C36,15 38,14 40,16 L49,54 Z" fill="#183022" stroke="#FFD700" strokeWidth="1.2" />
+            <path d="M52,54 L63,16 C64,14 65,16 64,18 L53,54 Z" fill="#0B1911" stroke="#FFD700" strokeWidth="1.2" />
+            <path d="M46,54 L31,25 C30,23 32,22 34,24 L47,54 Z" fill="#112218" />
+          </g>
+        );
+      case 'sansevieria_hahnii':
+        return (
+          <g>
+            <path d="M50,54 C40,54 35,40 38,30 C41,20 48,25 50,32 C52,25 59,20 62,30 C65,40 60,54 50,54 Z" fill="#2E7D32" stroke="#A3E635" strokeWidth="0.9" />
+            <path d="M50,54 C45,54 40,42 43,33 C46,24 51,28 50,35 C49,28 54,24 57,33 C60,42 55,54 50,54 Z" fill="#388E3C" />
+            <path d="M50,54 C48,54 44,45 46,38 C48,31 51,34 50,38 C49,34 52,31 54,38 C56,45 52,54 50,54 Z" fill="#1B5E20" />
+          </g>
+        );
+      case 'sansevieria_cylindrica':
+        return (
+          <g>
+            <path d="M50,54 L40,15 C39,13 41,12 42,14 L49,54 Z" fill="#33691E" stroke="#558B2F" strokeWidth="2" />
+            <path d="M50,54 L60,13 C61,11 63,12 62,14 L52,54 Z" fill="#33691E" stroke="#558B2F" strokeWidth="2" />
+            <path d="M49,54 L50,8 C50,6 52,6 53,8 L51,54 Z" fill="#558B2F" stroke="#33691E" strokeWidth="2" />
+            <path d="M48,54 L30,22 C29,20 31,19 33,21 L48,54 Z" fill="#2E7D32" stroke="#558B2F" strokeWidth="2" />
+            <path d="M52,54 L70,21 C71,19 69,18 68,20 L53,54 Z" fill="#2E7D32" stroke="#558B2F" strokeWidth="2" />
+          </g>
+        );
+      case 'sansevieria_fernwood':
+        return (
+          <g>
+            <path d="M50,54 L36,18 C35,16 38,15 40,17 L49,54 Z" fill="#558B2F" />
+            <path d="M50,54 L64,17 C65,15 63,14 61,16 L52,54 Z" fill="#33691E" />
+            <path d="M50,54 L44,12 C43,10 46,9 47,11 L51,54 Z" fill="#689F38" />
+            <path d="M50,54 L56,11 C57,9 55,8 54,10 L50,54 Z" fill="#558B2F" />
+            <path d="M49,54 L26,28 C25,26 28,25 30,27 L48,54 Z" fill="#33691E" />
+            <path d="M51,54 L74,27 C75,25 72,24 70,26 L52,54 Z" fill="#558B2F" />
+          </g>
+        );
+      case 'zz':
+      case 'zz_green':
+        return (
+          <g>
+            <path d="M46 54L36 16M54 54L64 14" stroke="#2B5E3F" strokeWidth="2.5" strokeLinecap="round" />
+            {[22, 32, 42, 49].map((y, i) => (
+              <g key={i}>
+                <ellipse cx={33 - i * 1.2} cy={y} rx="6.2" ry="3.3" transform={`rotate(-25 ${33 - i * 1.2} ${y})`} fill="#2E6F4E" stroke="#18422C" strokeWidth="1.1" />
+                <ellipse cx={43 - i * 1.2} cy={y - 2} rx="6.2" ry="3.3" transform={`rotate(25 ${43 - i * 1.2} ${y - 2})`} fill="#3E8E63" stroke="#18422C" strokeWidth="1.1" />
+                <ellipse cx={57 + i * 1.2} cy={y - 2} rx="6.2" ry="3.3" transform={`rotate(-25 ${57 + i * 1.2} ${y - 2})`} fill="#52B788" stroke="#18422C" strokeWidth="1.1" />
+                <ellipse cx={67 + i * 1.2} cy={y} rx="6.2" ry="3.3" transform={`rotate(25 ${67 + i * 1.2} ${y})`} fill="#40916C" stroke="#18422C" strokeWidth="1.1" />
+              </g>
+            ))}
+          </g>
+        );
+      case 'zz_raven':
+        return (
+          <g>
+            <path d="M46 54L36 16M54 54L64 14" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" />
+            {[22, 32, 42, 49].map((y, i) => (
+              <g key={i}>
+                <ellipse cx={33 - i * 1.2} cy={y} rx="6.2" ry="3.3" transform={`rotate(-25 ${33 - i * 1.2} ${y})`} fill="#1F2937" stroke="#030712" strokeWidth="1.1" />
+                <ellipse cx={43 - i * 1.2} cy={y - 2} rx="6.2" ry="3.3" transform={`rotate(25 ${43 - i * 1.2} ${y - 2})`} fill="#111827" stroke="#030712" strokeWidth="1.1" />
+                <ellipse cx={57 + i * 1.2} cy={y - 2} rx="6.2" ry="3.3" transform={`rotate(-25 ${57 + i * 1.2} ${y - 2})`} fill="#374151" stroke="#030712" strokeWidth="1.1" />
+                <ellipse cx={67 + i * 1.2} cy={y} rx="6.2" ry="3.3" transform={`rotate(25 ${67 + i * 1.2} ${y})`} fill="#111827" stroke="#030712" strokeWidth="1.1" />
+              </g>
+            ))}
+          </g>
+        );
+      case 'zz_variegated':
+        return (
+          <g>
+            <path d="M46 54L36 16M54 54L64 14" stroke="#2B5E3F" strokeWidth="2.5" strokeLinecap="round" />
+            {[22, 32, 42, 49].map((y, i) => (
+              <g key={i}>
+                <ellipse cx={33 - i * 1.2} cy={y} rx="6.2" ry="3.3" transform={`rotate(-25 ${33 - i * 1.2} ${y})`} fill={i % 2 === 0 ? '#FEF08A' : '#2E6F4E'} stroke="#18422C" strokeWidth="1.1" />
+                <ellipse cx={43 - i * 1.2} cy={y - 2} rx="6.2" ry="3.3" transform={`rotate(25 ${43 - i * 1.2} ${y - 2})`} fill="#3E8E63" stroke="#18422C" strokeWidth="1.1" />
+                <ellipse cx={57 + i * 1.2} cy={y - 2} rx="6.2" ry="3.3" transform={`rotate(-25 ${57 + i * 1.2} ${y - 2})`} fill={i % 2 === 1 ? '#FEF9C3' : '#52B788'} stroke="#18422C" strokeWidth="1.1" />
+                <ellipse cx={67 + i * 1.2} cy={y} rx="6.2" ry="3.3" transform={`rotate(25 ${67 + i * 1.2} ${y})`} fill="#40916C" stroke="#18422C" strokeWidth="1.1" />
+              </g>
+            ))}
+          </g>
+        );
+      case 'aglaonema':
+      case 'aglaonema_silver':
+        return (
+          <g>
+            <path d="M50,54 C35,50 20,35 22,20 C24,10 38,15 50,32 C62,15 76,10 78,20 C80,35 65,50 50,54 Z" fill="#2D6A4F" />
+            <path d="M50,54 C42,48 32,38 35,28 C37,20 44,24 50,35 C56,24 63,20 65,28 C68,38 58,48 50,54 Z" fill="#B7E4C7" />
+          </g>
+        );
+      case 'aglaonema_snow':
+        return (
+          <g>
+            <path d="M50,54 C35,50 20,35 22,20 C24,10 38,15 50,32 C62,15 76,10 78,20 C80,35 65,50 50,54 Z" fill="#4CAF50" />
+            <path d="M50,54 C42,48 32,38 35,28 C37,20 44,24 50,35 C56,24 63,20 65,28 C68,38 58,48 50,54 Z" fill="#FFFFFF" />
+          </g>
+        );
+      case 'aglaonema_dark':
+      case 'aspidistra_cast_iron':
+        return (
+          <g>
+            <path d="M50,54 C30,50 15,30 18,15 C20,8 35,12 50,28 C65,12 80,8 82,15 C85,30 70,50 50,54 Z" fill="#14532D" />
+            <path d="M50,54 C40,50 25,35 30,22 C33,15 42,20 50,32 C58,20 67,15 70,22 C75,35 60,50 50,54 Z" fill="#166534" />
+          </g>
+        );
+      case 'aglaonema_red':
+        return (
+          <g>
+            <path d="M50,54 C35,50 20,35 22,20 C24,10 38,15 50,32 C62,15 76,10 78,20 C80,35 65,50 50,54 Z" fill="#14532D" />
+            <path d="M50,54 C42,48 32,38 35,28 C37,20 44,24 50,35 C56,24 63,20 65,28 C68,38 58,48 50,54 Z" fill="#E11D48" />
+          </g>
+        );
+      case 'aglaonema_gold':
+        return (
+          <g>
+            <path d="M50,54 C35,50 20,35 22,20 C24,10 38,15 50,32 C62,15 76,10 78,20 C80,35 65,50 50,54 Z" fill="#166534" />
+            <path d="M50,54 C42,48 32,38 35,28 C37,20 44,24 50,35 C56,24 63,20 65,28 C68,38 58,48 50,54 Z" fill="#FACC15" />
+          </g>
+        );
+      case 'dieffenbachia':
+      case 'dieffenbachia_tropic':
+      case 'dieffenbachia_camilla':
+        return (
+          <g>
+            <path d="M50,54 C35,48 18,32 20,16 C22,8 36,12 50,28 C64,12 78,8 80,16 C82,32 65,48 50,54 Z" fill="#166534" />
+            <path d="M50,54 C42,45 28,32 32,22 C35,15 43,18 50,30 C57,18 65,15 68,22 C72,32 58,45 50,54 Z" fill="#FEF08A" />
+          </g>
+        );
+      case 'schefflera':
+      case 'schefflera_variegated':
+      case 'schefflera_green':
+        return (
+          <g>
+            <path d="M50 54V22M50 40L33 29M50 36L67 28" stroke="#4A6B53" strokeWidth="2.4" strokeLinecap="round" />
+            {[0, 51, 102, 153, 204, 255, 306].map((deg) => (
+              <ellipse key={deg} cx="33" cy="22" rx="3" ry="7.5" transform={`rotate(${deg} 33 29)`} fill="#2D6A4F" stroke="#1B4332" strokeWidth="0.8" />
+            ))}
+            {[0, 51, 102, 153, 204, 255, 306].map((deg) => (
+              <ellipse key={deg} cx="67" cy="21" rx="3" ry="7.5" transform={`rotate(${deg} 67 28)`} fill="#40916C" stroke="#1B4332" strokeWidth="0.8" />
+            ))}
+            {[0, 51, 102, 153, 204, 255, 306].map((deg) => (
+              <ellipse key={deg} cx="50" cy="13" rx="3.2" ry="8" transform={`rotate(${deg} 50 21)`} fill={shape === 'schefflera_variegated' ? '#A3E635' : '#52B788'} stroke="#1B4332" strokeWidth="0.8" />
+            ))}
+          </g>
+        );
+      case 'ficus':
+      case 'ficus_elastica_green':
+        return (
+          <g>
+            <path d="M50,54 C35,50 15,35 20,18 C23,8 40,12 50,30 C60,12 77,8 80,18 C85,35 65,50 50,54 Z" fill="#14532D" />
+            <path d="M50,54 C40,46 25,30 30,20 C34,12 43,16 50,28 C57,16 66,12 70,20 C75,30 60,46 50,54 Z" fill="#166534" />
+          </g>
+        );
+      case 'ficus_elastica_burgundy':
+        return (
+          <g>
+            <path d="M50,54 C35,50 15,35 20,18 C23,8 40,12 50,30 C60,12 77,8 80,18 C85,35 65,50 50,54 Z" fill="#4A0404" />
+            <path d="M50,54 C40,46 25,30 30,20 C34,12 43,16 50,28 C57,16 66,12 70,20 C75,30 60,46 50,54 Z" fill="#7F1D1D" />
+          </g>
+        );
+      case 'ficus_elastica_black':
+        return (
+          <g>
+            <path d="M50,54 C35,50 15,35 20,18 C23,8 40,12 50,30 C60,12 77,8 80,18 C85,35 65,50 50,54 Z" fill="#030712" />
+            <path d="M50,54 C40,46 25,30 30,20 C34,12 43,16 50,28 C57,16 66,12 70,20 C75,30 60,46 50,54 Z" fill="#1F2937" />
+          </g>
+        );
+      case 'fiddle_leaf':
+      case 'ficus_lyrata':
+        return (
+          <g>
+            <path d="M50,54 C30,50 12,30 18,12 C22,2 38,6 50,24 C62,6 78,2 82,12 C88,30 70,50 50,54 Z" fill="#166534" />
+            <path d="M50,54 C38,44 22,28 26,16 C30,8 42,12 50,24 C58,12 70,8 74,16 C78,28 62,44 50,54 Z" fill="#15803D" />
+          </g>
+        );
+      case 'ficus_benjamina':
+        return (
+          <g>
+            <path d="M50,54 C38,45 20,35 15,20 C12,12 25,10 40,25 C30,15 45,5 50,18 C55,5 70,15 60,25 C75,10 88,12 85,20 C80,35 62,45 50,54 Z" fill="#15803D" />
+            <path d="M50,54 C42,42 28,30 25,18 C22,10 32,8 45,22 C48,15 52,15 55,22 C68,8 78,10 75,18 C72,30 58,42 50,54 Z" fill="#22C55E" />
+          </g>
+        );
+      case 'ficus_ginseng':
+      case 'bonsai_ginseng':
+        return (
+          <g>
+            <ellipse cx="50" cy="50" rx="14" ry="8" fill="#7C2D12" />
+            <path d="M50,42 C35,35 20,20 25,10 C30,2 45,5 50,15 C55,5 70,2 75,10 C80,20 65,35 50,42 Z" fill="#15803D" />
+          </g>
+        );
+
+      // --- فاز ۲: پتوس‌ها و فیلودندرون‌ها ---
+      case 'pothos':
+      case 'pothos_golden':
+      case 'pothos_jade':
+      case 'pothos_satin':
+        return (
+          <g>
+            <path d="M50,54 C38,45 22,32 25,18 C27,10 38,12 50,26 C62,12 73,10 75,18 C78,32 62,45 50,54 Z" fill="#22C55E" />
+            <path d="M50,70 C30,68 15,50 18,35 C20,25 32,28 45,45 C35,50 35,60 50,70 Z" fill="#166534" />
+            <path d="M50,80 C70,78 85,60 82,45 C80,35 68,28 55,45 C65,50 65,60 50,80 Z" fill="#15803D" />
+          </g>
+        );
+      case 'pothos_neon':
+        return (
+          <g>
+            <path d="M50,54 C38,45 22,32 25,18 C27,10 38,12 50,26 C62,12 73,10 75,18 C78,32 62,45 50,54 Z" fill="#84CC16" />
+            <path d="M50,70 C30,68 15,50 18,35 C20,25 32,28 45,45 C35,50 35,60 50,70 Z" fill="#A3E635" />
+            <path d="M50,80 C70,78 85,60 82,45 C80,35 68,28 55,45 C65,50 65,60 50,80 Z" fill="#65A30D" />
+          </g>
+        );
+      case 'pothos_marble':
+      case 'pothos_manjula':
+      case 'pothos_njoy':
+        return (
+          <g>
+            <path d="M50,54 C38,45 22,32 25,18 C27,10 38,12 50,26 C62,12 73,10 75,18 C78,32 62,45 50,54 Z" fill="#FFFFFF" stroke="#166534" strokeWidth="1" />
+            <path d="M50,70 C30,68 15,50 18,35 C20,25 32,28 45,45 C35,50 35,60 50,70 Z" fill="#E2E8F0" />
+            <path d="M50,80 C70,78 85,60 82,45 C80,35 68,28 55,45 C65,50 65,60 50,80 Z" fill="#166534" />
+          </g>
+        );
+      case 'monstera':
+      case 'monstera_adansonii':
+      case 'monstera_deliciosa':
+      case 'monstera_thai':
+        return (
+          <g>
+            <path d="M50,54 C30,50 10,30 15,12 C18,2 38,5 50,22 C62,5 82,2 85,12 C90,30 70,50 50,54 Z" fill="#166534" />
+            <circle cx="35" cy="25" r="4" fill={shape === 'monstera_thai' ? '#FEF9C3' : '#F6F3EC'} />
+            <circle cx="65" cy="25" r="4" fill={shape === 'monstera_thai' ? '#FEF9C3' : '#F6F3EC'} />
+            <circle cx="50" cy="35" r="5" fill="#F6F3EC" />
+          </g>
+        );
+      case 'philo_scandens':
+      case 'philo_brasil':
+      case 'philo_birkin':
+      case 'philo_orange':
+      case 'philo_pink_princess':
+      case 'philo_xanadu':
+      case 'philo_elephant_ear':
+      case 'philo_micans':
+        return (
+          <g>
             <path
-              d="M31 54H69L71 65L63 82H37L29 65L31 54Z"
-              fill={palette.fill}
-              stroke={palette.stroke}
-              strokeWidth="1.7"
-              strokeLinejoin="round"
+              d="M50,54 C35,50 15,35 20,15 C23,5 40,8 50,25 C60,8 77,5 80,15 C85,35 65,50 50,54 Z"
+              fill={
+                shape === 'philo_orange'
+                  ? '#EA580C'
+                  : shape === 'philo_pink_princess'
+                  ? '#9D174D'
+                  : '#15803D'
+              }
             />
+            <path d="M50,72 C25,70 10,50 15,35 C18,25 32,28 45,48 C35,55 35,65 50,72 Z" fill="#166534" />
+          </g>
+        );
+      case 'syngonium_green':
+      case 'syngonium_pink':
+      case 'syngonium_albo':
+        return (
+          <g>
             <path
-              d="M31 54L39 65L50 54L61 65L69 54M29 65H71M39 65L37 82M39 65L50 82L61 65M61 65L63 82"
-              stroke={palette.detail}
+              d="M50,54 L35,25 L50,12 L65,25 Z"
+              fill={shape === 'syngonium_pink' ? '#F472B6' : shape === 'syngonium_albo' ? '#F8FAFC' : '#22C55E'}
+              stroke="#166534"
+              strokeWidth="0.8"
+            />
+            <path d="M50,54 L20,38 L30,22 Z" fill="#166534" />
+            <path d="M50,54 L80,38 L70,22 Z" fill="#15803D" />
+          </g>
+        );
+      case 'alocasia_giant':
+      case 'alocasia_polly':
+      case 'alocasia_black_velvet':
+      case 'alocasia_zebrina':
+        return (
+          <g>
+            <path d="M50,54 C35,50 10,35 20,10 C25,2 45,5 50,20 C55,5 75,2 80,10 C90,35 65,50 50,54 Z" fill="#064E3B" stroke="#A7F3D0" strokeWidth="1.2" />
+          </g>
+        );
+
+      // --- فاز ۳: دراسنا، بامبو و نخل‌ها ---
+      case 'dracaena':
+      case 'dracaena_compacta':
+      case 'dracaena_marginata':
+      case 'dracaena_massangeana':
+      case 'dracaena_lemon_lime':
+      case 'dracaena_reflexa':
+      case 'cordyline_red':
+        return (
+          <g>
+            <path d="M50,54 L48,15 C48,10 52,10 52,15 L50,54 Z" fill="#3D2817" />
+            <path d="M50,20 L30,10 L48,22 Z" fill={shape === 'cordyline_red' ? '#BE123C' : '#15803D'} />
+            <path d="M50,20 L70,10 L52,22 Z" fill="#166534" />
+            <path d="M50,18 L25,25 L49,25 Z" fill="#166534" />
+            <path d="M50,18 L75,25 L51,25 Z" fill={shape === 'cordyline_red' ? '#E11D48' : '#15803D'} />
+          </g>
+        );
+      case 'lucky_bamboo':
+        return (
+          <g>
+            <path d="M48,54 Q44,40 52,30 Q60,20 50,10" stroke="#166534" strokeWidth="5" fill="none" strokeLinecap="round" />
+            <path d="M52,25 L40,20 Z" fill="#22C55E" />
+            <path d="M50,15 L62,12 Z" fill="#22C55E" />
+          </g>
+        );
+      case 'yucca_cane':
+        return (
+          <g>
+            <rect x="46" y="25" width="8" height="29" fill="#5C4033" rx="2" />
+            <path d="M50,25 L30,12 L48,26 Z" fill="#15803D" />
+            <path d="M50,25 L70,12 L52,26 Z" fill="#166534" />
+            <path d="M50,22 L20,20 L49,27 Z" fill="#166534" />
+            <path d="M50,22 L80,20 L51,27 Z" fill="#15803D" />
+          </g>
+        );
+      case 'chamaedorea':
+      case 'pachypodium':
+      case 'palm_chamaedorea':
+      case 'palm_areca':
+      case 'palm_kentia':
+      case 'palm_cyperus':
+      case 'palm_madagascar':
+      case 'palm_fan':
+      case 'palm_rhapis':
+      case 'cycas_revoluta':
+      case 'ponytail_linda':
+        return (
+          <g>
+            <path d="M50,54 L48,22 C48,18 52,18 52,22 L50,54 Z" fill="#4B3621" />
+            <path d="M50,22 Q30,5 15,10 Q25,25 50,22 Z" fill="#15803D" />
+            <path d="M50,22 Q70,5 85,10 Q75,25 50,22 Z" fill="#166534" />
+            <path d="M50,22 Q40,2 30,18 Q45,28 50,22 Z" fill="#22C55E" />
+            <path d="M50,22 Q60,2 70,18 Q55,28 50,22 Z" fill="#15803D" />
+          </g>
+        );
+      case 'pine':
+      case 'pine_norfolk':
+      case 'pine_nana':
+      case 'cypress_goldcrest':
+        return (
+          <g>
+            <path
+              d="M50 9L25 48H75L50 9Z"
+              fill={shape === 'cypress_goldcrest' ? '#84CC16' : '#2F6648'}
+              stroke="#1E4430"
               strokeWidth="1.2"
               strokeLinejoin="round"
             />
-          </g>
-        );
-
-      case 'square_patterned':
-        // گلدان چهارگوش لبه پهن با بافت لوزی برجسته (مشابه عکس ۳: گلدان سبز پاستلی سانسوریا)
-        return (
-          <g>
-            <rect x="28" y="52.5" width="44" height="4.5" rx="2" fill={palette.fill} stroke={palette.stroke} strokeWidth="1.6" />
             <path
-              d="M31 57H69L65 83H35L31 57Z"
-              fill={palette.fill}
-              stroke={palette.stroke}
-              strokeWidth="1.7"
-              strokeLinejoin="round"
+              d="M50 16L30 43H70L50 16Z"
+              fill={shape === 'cypress_goldcrest' ? '#A3E635' : '#43825F'}
             />
             <path
-              d="M36 62H64M37 68H63M38 74H62M42 57L39 83M50 57V83M58 57L61 83"
-              stroke={palette.detail}
-              strokeWidth="1.1"
-              strokeOpacity="0.85"
+              d="M50 23L36 38H64L50 23Z"
+              fill={shape === 'cypress_goldcrest' ? '#BEF264' : '#5CA37B'}
             />
           </g>
         );
 
-      case 'cylinder_modern':
-        // گلدان استوانه‌ای مدرن با زیرگلدانی چسبیده (مشابه عکس ۷: گلدان موسی در گهواره)
+      // --- فاز ۴: کالاتیا، مارانتا، پپرومیا و سرخس‌ها ---
+      case 'calathea':
+      case 'calathea_ornata':
+      case 'calathea_zebrina':
+      case 'calathea_medallion':
+      case 'calathea_lancifolia':
+      case 'calathea_orbifolia':
+      case 'maranta_erythroneura':
+      case 'maranta_lemon_lime':
+      case 'stromanthe_triostar':
         return (
           <g>
-            <ellipse cx="50" cy="54" rx="17" ry="2.8" fill="#5C4033" />
-            <path
-              d="M32 54H68L66 79H34L32 54Z"
-              fill={palette.fill}
-              stroke={palette.stroke}
-              strokeWidth="1.7"
-            />
-            <path
-              d="M33.5 78.5H66.5L65.5 83.5H34.5L33.5 78.5Z"
-              fill={palette.shade}
-              stroke={palette.stroke}
-              strokeWidth="1.5"
-            />
+            <path d="M50,54 C35,45 15,35 25,15 C32,5 48,12 50,28 C52,12 68,5 75,15 C85,35 65,45 50,54 Z" fill="#14532D" />
+            <path d="M50,54 C42,42 28,30 35,20 C40,12 46,18 50,30 C54,18 60,12 65,20 C72,30 58,42 50,54 Z" fill="#EC4899" />
           </g>
         );
-
-      case 'round_ribbed':
-      default:
-        // گلدان گرد شیاردار کلاسیک به همراه زیرگلدانی (مشابه عکس ۲، ۷ و ۸)
-        return (
-          <g>
-            <ellipse cx="50" cy="54" rx="18" ry="2.8" fill="#5C4033" />
-            <rect x="30" y="52.5" width="40" height="4" rx="2" fill={palette.fill} stroke={palette.stroke} strokeWidth="1.5" />
-            <path
-              d="M33 56.5H67L63 80C62.5 81.8 60.5 82.5 58.5 82.5H41.5C39.5 82.5 37.5 81.8 37 80L33 56.5Z"
-              fill={palette.fill}
-              stroke={palette.stroke}
-              strokeWidth="1.7"
-            />
-            {[39, 44.5, 50, 55.5, 61].map((x) => (
-              <line key={x} x1={x} y1="57" x2={x + (50 - x) * 0.14} y2="81.5" stroke={palette.detail} strokeWidth="1.2" />
-            ))}
-            <rect x="34" y="81.5" width="32" height="3.2" rx="1.6" fill={palette.shade} stroke={palette.stroke} strokeWidth="1.2" />
-          </g>
-        );
-    }
-  };
-
-  // ۵. رندر شاخ‌وبرگ اختصاصی و پرجزئیات برای تمام گونه‌های محل کار و خانه
-  const renderFoliage = () => {
-    switch (shape) {
-      case 'sansevieria':
-        // سانسوریا شمشیری ابلق و سبز بلند بسته‌شده با روبان صورتی (مشابه عکس ۳)
-        return (
-          <g>
-            <path d="M42 54C39 38 37 22 39 7C43 20 45 36 46 54Z" fill="#2D6A4F" stroke="#84CC16" strokeWidth="1.3" />
-            <path d="M58 54C61 38 63 20 60 6C56 20 55 36 54 54Z" fill="#2D6A4F" stroke="#A3E635" strokeWidth="1.3" />
-            <path d="M47 54C46 35 47 16 50 3C53 16 54 35 53 54Z" fill="#40916C" stroke="#BEF264" strokeWidth="1.4" />
-            <path d="M36 54C33 42 32 30 34 19C38 28 39 41 41 54Z" fill="#1B4332" stroke="#74C69D" strokeWidth="1.1" />
-            <path d="M64 54C67 42 68 29 65 18C61 28 60 41 59 54Z" fill="#1B4332" stroke="#74C69D" strokeWidth="1.1" />
-            {/* خطوط افقی ببری روی برگ‌های سانسوریا */}
-            <path d="M48 16H52M47 24H53M47 32H53M40 26H44M56 25H60" stroke="#B7E4C7" strokeWidth="1.2" strokeLinecap="round" opacity="0.75" />
-            {/* روبان صورتی دور برگ‌های سانسوریا دقیقاً مثل عکس ۳ */}
-            <rect x="35" y="35" width="30" height="3.2" rx="1.6" fill="#EC4899" stroke="#BE185D" strokeWidth="0.9" />
-            <path d="M56 36.5L62 41M56 36.5L61 33" stroke="#EC4899" strokeWidth="1.8" strokeLinecap="round" />
-          </g>
-        );
-
-      case 'christmas_cactus':
-        // کاکتوس کریسمس / زیگوکاکتوس آبشاری بندبند (مشابه عکس ۶)
-        return (
-          <g>
-            {[
-              { d: 'M46 53 Q36 44 26 48 Q18 52 13 62', color: '#52B788' },
-              { d: 'M48 52 Q38 36 28 36 Q19 36 14 44', color: '#74C69D' },
-              { d: 'M50 52 Q50 32 50 18', color: '#40916C' },
-              { d: 'M52 52 Q62 36 72 36 Q81 36 86 44', color: '#74C69D' },
-              { d: 'M54 53 Q64 44 74 48 Q82 52 87 62', color: '#52B788' },
-              { d: 'M44 54 Q35 54 27 64 Q22 70 20 77', color: '#40916C' },
-              { d: 'M56 54 Q65 54 73 64 Q78 70 80 77', color: '#40916C' }
-            ].map((branch, idx) => (
-              <path
-                key={idx}
-                d={branch.d}
-                stroke={branch.color}
-                strokeWidth="4.6"
-                strokeLinecap="round"
-                strokeDasharray="6 2.2"
-              />
-            ))}
-            {/* بندهای بالایی روشن‌تر */}
-            <ellipse cx="44" cy="28" rx="3" ry="6" transform="rotate(-25 44 28)" fill="#A3E635" stroke="#3F6212" strokeWidth="0.9" />
-            <ellipse cx="56" cy="28" rx="3" ry="6" transform="rotate(25 56 28)" fill="#A3E635" stroke="#3F6212" strokeWidth="0.9" />
-            <ellipse cx="35" cy="42" rx="3.2" ry="6" transform="rotate(-55 35 42)" fill="#84CC16" stroke="#3F6212" strokeWidth="0.9" />
-            <ellipse cx="65" cy="42" rx="3.2" ry="6" transform="rotate(55 65 42)" fill="#84CC16" stroke="#3F6212" strokeWidth="0.9" />
-            {/* غنچه کوچک یاقوتی در نوک ساقه */}
-            <circle cx="13" cy="62" r="2.3" fill="#E11D48" />
-            <circle cx="87" cy="62" r="2.3" fill="#E11D48" />
-          </g>
-        );
-
-      case 'spider_plant':
-        // گندمی ابلق فواره‌ای با ساقه رونده و گندمک آویز (مشابه عکس ۸)
-        return (
-          <g>
-            {[
-              'M50 54 Q34 36 14 48',
-              'M50 54 Q30 44 12 64',
-              'M50 54 Q38 24 22 24',
-              'M50 54 Q46 22 44 10',
-              'M50 54 Q54 22 58 10',
-              'M50 54 Q62 24 78 24',
-              'M50 54 Q66 36 86 48',
-              'M50 54 Q70 44 88 64'
-            ].map((d, i) => (
-              <g key={i}>
-                <path d={d} stroke="#2D6A4F" strokeWidth="4.2" strokeLinecap="round" fill="none" />
-                <path d={d} stroke="#ECFCCB" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-              </g>
-            ))}
-            {/* ساقه رونده طلایی و گندمک آویزان در پایین گلدان (مشابه عکس ۸) */}
-            <path d="M44 54 Q30 66 26 83" stroke="#CA8A04" strokeWidth="1.5" fill="none" />
-            <g transform="translate(26, 82)">
-              <path d="M0 0L-6 5M0 0L6 5M0 0L-4 -5M0 0L4 -5M0 0V7" stroke="#4D7C0F" strokeWidth="1.8" strokeLinecap="round" />
-              <circle cx="0" cy="0" r="1.8" fill="#FEF08A" />
-            </g>
-          </g>
-        );
-
-      case 'purple_heart':
-        // برگ‌بیدی بنفش / زبرینا (مشابه عکس ۸)
-        return (
-          <g>
-            {[
-              { cx: 34, cy: 42, rot: -35, fill: '#581C87' },
-              { cx: 66, cy: 42, rot: 35, fill: '#581C87' },
-              { cx: 38, cy: 31, rot: -22, fill: '#7E22CE' },
-              { cx: 62, cy: 31, rot: 22, fill: '#6B21A8' },
-              { cx: 45, cy: 25, rot: -10, fill: '#86198F' },
-              { cx: 55, cy: 25, rot: 10, fill: '#701A75' },
-              { cx: 50, cy: 36, rot: 0, fill: '#4C1D95' }
-            ].map((lf, i) => (
-              <g key={i}>
-                <ellipse
-                  cx={lf.cx}
-                  cy={lf.cy}
-                  rx="5.5"
-                  ry="13"
-                  transform={`rotate(${lf.rot} ${lf.cx} ${lf.cy})`}
-                  fill={lf.fill}
-                  stroke="#3B0764"
-                  strokeWidth="1.1"
-                />
-                <ellipse
-                  cx={lf.cx}
-                  cy={lf.cy}
-                  rx="2"
-                  ry="9"
-                  transform={`rotate(${lf.rot} ${lf.cx} ${lf.cy})`}
-                  fill="#A855F7"
-                  opacity="0.45"
-                />
-              </g>
-            ))}
-            <circle cx="50" cy="20" r="2.5" fill="#F472B6" />
-          </g>
-        );
-
       case 'peperomia':
-        // پپرومیا برگ‌قاشقی ابلق (مشابه عکس ۷ سمت راست)
+      case 'peperomia_obtusifolia_green':
+      case 'peperomia_obtusifolia_variegated':
+      case 'peperomia_watermelon':
+      case 'peperomia_caperata':
+      case 'peperomia_raindrop':
         return (
           <g>
-            <path d="M50 54V20M50 42L38 34M50 36L62 28M50 28L40 20" stroke="#65A30D" strokeWidth="2.4" strokeLinecap="round" />
-            {[
-              { cx: 37, cy: 39, rot: -20 },
-              { cx: 63, cy: 39, rot: 20 },
-              { cx: 39, cy: 28, rot: -15 },
-              { cx: 61, cy: 28, rot: 15 },
-              { cx: 45, cy: 19, rot: -8 },
-              { cx: 55, cy: 19, rot: 8 },
-              { cx: 50, cy: 13, rot: 0 }
-            ].map((lf, i) => (
-              <g key={i} transform={`rotate(${lf.rot} ${lf.cx} ${lf.cy})`}>
-                <ellipse cx={lf.cx} cy={lf.cy} rx="6.8" ry="5.2" fill="#FEF9C3" stroke="#3F6212" strokeWidth="1.1" />
-                <ellipse cx={lf.cx} cy={lf.cy} rx="4.2" ry="3.2" fill="#4D7C0F" />
-              </g>
-            ))}
+            <circle cx="42" cy="38" r="10" fill="#15803D" />
+            <circle cx="58" cy="38" r="10" fill="#166534" />
+            <circle cx="50" cy="26" r="12" fill="#22C55E" />
+            <circle cx="32" cy="45" r="9" fill="#14532D" />
+            <circle cx="68" cy="45" r="9" fill="#15803D" />
           </g>
         );
-
-      case 'kalanchoe':
-        // کالانکوئه برگ‌پهن کنگره‌دار (مشابه عکس ۸ سمت راست)
+      case 'fern_boston':
+      case 'fern_fluffy':
+      case 'fern_staghorn':
+      case 'fern_maidenhair':
         return (
           <g>
-            {[
-              { cx: 36, cy: 42, rot: -25 },
-              { cx: 64, cy: 42, rot: 25 },
-              { cx: 40, cy: 32, rot: -15 },
-              { cx: 60, cy: 32, rot: 15 },
-              { cx: 50, cy: 27, rot: 0 }
-            ].map((lf, i) => (
-              <ellipse
-                key={i}
-                cx={lf.cx}
-                cy={lf.cy}
-                rx="8.5"
-                ry="6"
-                transform={`rotate(${lf.rot} ${lf.cx} ${lf.cy})`}
-                fill={i % 2 === 0 ? '#2D6A4F' : '#40916C'}
-                stroke="#1B4332"
-                strokeWidth="1.2"
-                strokeDasharray="4 1.5"
-              />
-            ))}
-            <circle cx="47" cy="20" r="2.2" fill="#FB7185" />
-            <circle cx="53" cy="20" r="2.2" fill="#F43F5E" />
-            <circle cx="50" cy="17" r="2.4" fill="#E11D48" />
+            <path d="M50,54 Q35,40 20,45 Q15,30 35,32 Q25,15 45,25 Q50,10 55,25 Q75,15 65,32 Q85,30 80,45 Q65,40 50,54 Z" fill="#15803D" />
+            <path d="M50,54 Q40,48 30,50 Q28,40 40,42 Q35,30 48,38 Q50,25 52,38 Q65,30 60,42 Q72,40 70,50 Q60,48 50,54 Z" fill="#22C55E" />
           </g>
         );
-
-      case 'climbing_rose':
-        // رز رونده بلند با قیم چوبی و شاخه کمانی (مشابه عکس ۵ سمت چپ)
-        return (
-          <g>
-            {/* قیم چوبی بامبو */}
-            <line x1="45" y1="54" x2="45" y2="8" stroke="#D97706" strokeWidth="2.4" strokeLinecap="round" />
-            {/* شاخه‌های رز رونده */}
-            <path d="M48 54 C46 36 46 20 52 9 C62 7 74 14 82 26" stroke="#2D6A4F" strokeWidth="2" fill="none" />
-            <path d="M52 54 C56 40 60 28 68 20" stroke="#40916C" strokeWidth="1.8" fill="none" />
-            {/* رشته‌برگ‌های مرکب رز */}
-            {[
-              [38, 40], [36, 28], [39, 17], [53, 34], [56, 22], [65, 14], [75, 20], [64, 30]
-            ].map(([lx, ly], idx) => (
-              <g key={idx}>
-                <ellipse cx={lx} cy={ly} rx="4.2" ry="2.3" transform={`rotate(-20 ${lx} ${ly})`} fill="#40916C" stroke="#1B4332" strokeWidth="0.8" />
-                <ellipse cx={lx + 4} cy={ly + 2} rx="3.5" ry="2" transform={`rotate(20 ${lx + 4} ${ly + 2})`} fill="#52B788" stroke="#1B4332" strokeWidth="0.8" />
-              </g>
-            ))}
-            {/* گل‌های رز شکفته */}
-            <circle cx="66" cy="24" r="3.8" fill="#E11D48" stroke="#881337" strokeWidth="0.9" />
-            <circle cx="66" cy="24" r="1.8" fill="#FDA4AF" />
-            <circle cx="54" cy="14" r="3.2" fill="#F43F5E" stroke="#881337" strokeWidth="0.8" />
-          </g>
-        );
-
-      case 'rose_bush':
-        // بوته پرگل رز مینیاتوری و هلندی با غنچه‌های یاقوتی (مشابه عکس ۵)
-        return (
-          <g>
-            <path d="M50 54V22M50 44L34 30M50 42L66 28M50 34L40 18M50 34L60 18" stroke="#1B4332" strokeWidth="2" strokeLinecap="round" />
-            {[
-              [34, 38], [66, 38], [38, 28], [62, 28], [46, 34], [54, 34], [44, 23], [56, 23]
-            ].map(([lx, ly], i) => (
-              <ellipse key={i} cx={lx} cy={ly} rx="5.2" ry="3" transform={`rotate(${i % 2 === 0 ? -22 : 22} ${lx} ${ly})`} fill="#2D6A4F" stroke="#143325" strokeWidth="0.9" />
-            ))}
-            {/* ۵ گل رز قرمز و صورتی */}
-            {[
-              { cx: 34, cy: 26, r: 4.2, c1: '#E11D48', c2: '#FECDD3' },
-              { cx: 66, cy: 25, r: 4.2, c1: '#BE123C', c2: '#FDA4AF' },
-              { cx: 50, cy: 15, r: 4.8, c1: '#E11D48', c2: '#FFE4E6' },
-              { cx: 41, cy: 17, r: 3.5, c1: '#F43F5E', c2: '#FECDD3' },
-              { cx: 59, cy: 17, r: 3.5, c1: '#F43F5E', c2: '#FECDD3' }
-            ].map((fl, i) => (
-              <g key={i}>
-                <circle cx={fl.cx} cy={fl.cy} r={fl.r} fill={fl.c1} stroke="#881337" strokeWidth="0.9" />
-                <circle cx={fl.cx} cy={fl.cy} r={fl.r * 0.45} fill={fl.c2} />
-              </g>
-            ))}
-          </g>
-        );
-
-      case 'monstera':
-        // برگ‌انجیری / مونسترا با بریدگی‌های طبیعی برگ
-        return (
-          <g>
-            <path d="M50 54L36 32M50 54L64 30M50 54V22" stroke="#2D6A4F" strokeWidth="2.4" strokeLinecap="round" />
-            <ellipse cx="35" cy="30" rx="11" ry="14" transform="rotate(-25 35 30)" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.2" />
-            <ellipse cx="65" cy="30" rx="11" ry="14" transform="rotate(25 65 30)" fill="#40916C" stroke="#1B4332" strokeWidth="1.2" />
-            <ellipse cx="50" cy="22" rx="12" ry="15" fill="#52B788" stroke="#1B4332" strokeWidth="1.2" />
-            {/* شیارهای مخصوص برگ‌انجیری */}
-            <path d="M42 18H47M53 18H58M41 24H46M54 24H59M28 28H33M67 28H72" stroke="#F6F3EC" strokeWidth="1.8" strokeLinecap="round" />
-          </g>
-        );
-
-      case 'echeveria':
-        return (
-          <g>
-            {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
-              <ellipse key={deg} cx="50" cy="34" rx="7" ry="14" transform={`rotate(${deg} 50 42)`} fill="#52B788" stroke="#2D6A4F" strokeWidth="1.2" />
-            ))}
-            {[22, 82, 142, 202, 262, 322].map((deg) => (
-              <ellipse key={deg} cx="50" cy="37" rx="5" ry="10" transform={`rotate(${deg} 50 42)`} fill="#74C69D" stroke="#2D6A4F" strokeWidth="1" />
-            ))}
-            <circle cx="50" cy="42" r="4" fill="#D8F3DC" stroke="#2D6A4F" strokeWidth="1" />
-          </g>
-        );
-
-      case 'haworthia':
-        return (
-          <g>
-            <path d="M50 55L32 28L44 42L42 18L50 38L58 18L56 42L68 28L50 55Z" fill="#26543B" stroke="#163625" strokeWidth="1.4" strokeLinejoin="round" />
-            <path d="M44 26H56M38 34H62M41 41H59M44 47H56" stroke="#E8F0EA" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="3 3" />
-          </g>
-        );
-
-      case 'opuntia':
-        return (
-          <g>
-            <ellipse cx="50" cy="41" rx="13" ry="15" fill="#40916C" stroke="#1B4332" strokeWidth="1.5" />
-            <ellipse cx="37" cy="24" rx="7.5" ry="11" transform="rotate(-22 37 24)" fill="#52B788" stroke="#1B4332" strokeWidth="1.4" />
-            <ellipse cx="63" cy="24" rx="7.5" ry="11" transform="rotate(22 63 24)" fill="#52B788" stroke="#1B4332" strokeWidth="1.4" />
-            <circle cx="46" cy="38" r="1.2" fill="#FEF3C7" />
-            <circle cx="54" cy="44" r="1.2" fill="#FEF3C7" />
-            <circle cx="36" cy="22" r="1.2" fill="#FEF3C7" />
-            <circle cx="64" cy="22" r="1.2" fill="#FEF3C7" />
-          </g>
-        );
-
-      case 'dracaena':
-        return (
-          <g>
-            <path d="M50 55V26" stroke="#5A4634" strokeWidth="4.5" strokeLinecap="round" />
-            <path d="M50 44C38 40 28 32 25 22C36 24 45 32 50 44Z" fill="#1B5E3A" stroke="#123F27" strokeWidth="1.2" />
-            <path d="M50 44C62 40 72 32 75 22C64 24 55 32 50 44Z" fill="#237046" stroke="#123F27" strokeWidth="1.2" />
-            <path d="M50 35C40 29 33 20 31 11C41 15 47 24 50 35Z" fill="#2E8555" stroke="#1B5E3A" strokeWidth="1.2" />
-            <path d="M50 35C60 29 67 20 69 11C59 15 53 24 50 35Z" fill="#379963" stroke="#1B5E3A" strokeWidth="1.2" />
-            <path d="M50 28C46 19 46 11 50 6C54 11 54 19 50 28Z" fill="#4BB37A" stroke="#1B5E3A" strokeWidth="1.2" />
-          </g>
-        );
-
-      case 'aglaonema':
-        // آگلونما نقره‌ای پرپشت با طرح نقره‌ای-سبز دقیقاً مطابق عکس ۱
-        return (
-          <g>
-            <path d="M47 54L34 32M53 54L66 32M50 54V22" stroke="#74C69D" strokeWidth="2.4" strokeLinecap="round" />
-            {[
-              { cx: 31, cy: 36, rx: 7.5, ry: 15, rot: -34 },
-              { cx: 69, cy: 36, rx: 7.5, ry: 15, rot: 34 },
-              { cx: 38, cy: 26, rx: 8, ry: 16, rot: -18 },
-              { cx: 62, cy: 26, rx: 8, ry: 16, rot: 18 },
-              { cx: 50, cy: 21, rx: 8.5, ry: 17, rot: 0 }
-            ].map((lf, i) => (
-              <g key={i} transform={`rotate(${lf.rot} ${lf.cx} ${lf.cy})`}>
-                <ellipse cx={lf.cx} cy={lf.cy} rx={lf.rx} ry={lf.ry} fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.2" />
-                <ellipse cx={lf.cx} cy={lf.cy} rx={lf.rx * 0.58} ry={lf.ry * 0.76} fill="#B7E4C7" opacity="0.88" />
-                <line x1={lf.cx} y1={lf.cy - lf.ry * 0.7} x2={lf.cx} y2={lf.cy + lf.ry * 0.7} stroke="#2D6A4F" strokeWidth="1" />
-              </g>
-            ))}
-          </g>
-        );
-
-      case 'ficus':
-        return (
-          <g>
-            <path d="M50 55V20" stroke="#6E473B" strokeWidth="3.2" strokeLinecap="round" />
-            <ellipse cx="34" cy="42" rx="13" ry="7.5" transform="rotate(-22 34 42)" fill="#1B4332" stroke="#0F291E" strokeWidth="1.5" />
-            <path d="M26 39L42 45" stroke="#52B788" strokeWidth="1" opacity="0.7" />
-            <ellipse cx="66" cy="38" rx="13" ry="7.5" transform="rotate(22 66 38)" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.5" />
-            <ellipse cx="36" cy="26" rx="12" ry="7" transform="rotate(-15 36 26)" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.5" />
-            <ellipse cx="64" cy="24" rx="11" ry="6.5" transform="rotate(16 64 24)" fill="#1B4332" stroke="#0F291E" strokeWidth="1.4" />
-            <path d="M50 22C52 10 56 9 54 22" fill="#D94E34" stroke="#991B1B" strokeWidth="2" strokeLinecap="round" />
-          </g>
-        );
-
-      case 'dieffenbachia':
-        return (
-          <g>
-            <ellipse cx="34" cy="34" rx="11" ry="17" transform="rotate(-20 34 34)" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.4" />
-            <ellipse cx="34" cy="34" rx="6.5" ry="11" transform="rotate(-20 34 34)" fill="#E9F5DB" />
-            <ellipse cx="66" cy="34" rx="11" ry="17" transform="rotate(20 66 34)" fill="#2D6A4F" stroke="#1B4332" strokeWidth="1.4" />
-            <ellipse cx="66" cy="34" rx="6.5" ry="11" transform="rotate(20 66 34)" fill="#E9F5DB" />
-            <ellipse cx="50" cy="25" rx="11" ry="18" fill="#40916C" stroke="#1B4332" strokeWidth="1.4" />
-            <ellipse cx="50" cy="25" rx="6.5" ry="12" fill="#F2F9EB" />
-            <circle cx="48" cy="22" r="1.5" fill="#40916C" />
-            <circle cx="53" cy="28" r="1.5" fill="#40916C" />
-          </g>
-        );
-
-      case 'pine':
-        return (
-          <g>
-            <ellipse cx="50" cy="53" rx="16" ry="4" fill="#65A30D" />
-            <path d="M50 9L25 48H75L50 9Z" fill="#2F6648" stroke="#1E4430" strokeWidth="1.4" strokeLinejoin="round" />
-            <path d="M50 16L30 43H70L50 16Z" fill="#43825F" />
-            <path d="M50 23L36 38H64L50 23Z" fill="#5CA37B" />
-          </g>
-        );
-
-      case 'tradescantia':
-        return (
-          <g>
-            <path d="M50 55C40 44 26 36 18 24C30 26 42 36 50 55Z" fill="#9B2C62" stroke="#6B1B43" strokeWidth="1.3" />
-            <path d="M50 55C60 44 74 36 82 24C70 26 58 36 50 55Z" fill="#9B2C62" stroke="#6B1B43" strokeWidth="1.3" />
-            <path d="M50 55C43 38 34 24 30 12C40 18 47 32 50 55Z" fill="#3B7A57" stroke="#234F37" strokeWidth="1.3" />
-            <path d="M50 55C57 38 66 24 70 12C60 18 53 32 50 55Z" fill="#E598B8" stroke="#9B2C62" strokeWidth="1.3" />
-            <path d="M50 55C48 36 48 20 50 8C52 20 52 36 50 55Z" fill="#4D996E" stroke="#234F37" strokeWidth="1.3" />
-          </g>
-        );
-
-      case 'schefflera':
-        return (
-          <g>
-            <path d="M50 55V22M50 40L33 29M50 36L67 28" stroke="#4A6B53" strokeWidth="2.5" strokeLinecap="round" />
-            {[0, 51, 102, 153, 204, 255, 306].map((deg) => (
-              <ellipse key={deg} cx="33" cy="22" rx="3.1" ry="7.8" transform={`rotate(${deg} 33 29)`} fill="#2D6A4F" stroke="#1B4332" strokeWidth="0.9" />
-            ))}
-            {[0, 51, 102, 153, 204, 255, 306].map((deg) => (
-              <ellipse key={deg} cx="67" cy="21" rx="3.1" ry="7.8" transform={`rotate(${deg} 67 28)`} fill="#40916C" stroke="#1B4332" strokeWidth="0.9" />
-            ))}
-            {[0, 51, 102, 153, 204, 255, 306].map((deg) => (
-              <ellipse key={deg} cx="50" cy="13" rx="3.4" ry="8.4" transform={`rotate(${deg} 50 21)`} fill="#52B788" stroke="#1B4332" strokeWidth="0.9" />
-            ))}
-          </g>
-        );
-
-      case 'pachypodium':
-        return (
-          <g>
-            <rect x="44" y="26" width="12" height="29" rx="5" fill="#9FA89B" stroke="#6B7368" strokeWidth="1.5" />
-            <path d="M42 32L45 34M58 32L55 34M42 40L45 42M58 40L55 42M42 48L45 50M58 48L55 50" stroke="#5A6257" strokeWidth="1.4" strokeLinecap="round" />
-            <path d="M50 27C40 22 30 18 24 14C34 14 44 18 50 27Z" fill="#2E6F4E" stroke="#1E4D35" strokeWidth="1.2" />
-            <path d="M50 27C60 22 70 18 76 14C66 14 56 18 50 27Z" fill="#2E6F4E" stroke="#1E4D35" strokeWidth="1.2" />
-            <path d="M50 26C45 16 40 10 36 6C44 9 48 16 50 26Z" fill="#46966D" stroke="#1E4D35" strokeWidth="1.2" />
-            <path d="M50 26C55 16 60 10 64 6C56 9 52 16 50 26Z" fill="#46966D" stroke="#1E4D35" strokeWidth="1.2" />
-          </g>
-        );
-
-      case 'cactus':
-        return (
-          <g>
-            <circle cx="50" cy="40" r="16" fill="#3D7A4F" stroke="#244F31" strokeWidth="1.6" />
-            <path d="M43 25C41 35 41 45 43 55M50 24V56M57 25C59 35 59 45 57 55" stroke="#244F31" strokeWidth="1.2" />
-            <path d="M43 31L40 29M43 41L39 41M43 50L40 52M57 31L60 29M57 41L61 41M57 50L60 52M50 34L52 32M50 45L48 47" stroke="#E9D8A6" strokeWidth="1.5" strokeLinecap="round" />
-          </g>
-        );
-
       case 'hypoestes':
+      case 'fittonia_red':
+      case 'fittonia_white':
+      case 'hypoestes_polka':
         return (
           <g>
-            <ellipse cx="36" cy="39" rx="12" ry="7.5" transform="rotate(-28 36 39)" fill="#D94E78" stroke="#2E5A44" strokeWidth="1.5" />
-            <circle cx="34" cy="38" r="1.5" fill="#FDE2E9" />
-            <circle cx="39" cy="41" r="1.2" fill="#FDE2E9" />
-            <ellipse cx="64" cy="39" rx="12" ry="7.5" transform="rotate(28 64 39)" fill="#E8F0EA" stroke="#2E5A44" strokeWidth="1.5" />
-            <circle cx="62" cy="38" r="1.5" fill="#3B7A57" />
-            <circle cx="67" cy="41" r="1.2" fill="#3B7A57" />
-            <ellipse cx="50" cy="26" rx="11" ry="8" fill="#EC6B94" stroke="#2E5A44" strokeWidth="1.5" />
-            <circle cx="48" cy="24" r="1.4" fill="#FFF0F5" />
-            <circle cx="53" cy="28" r="1.4" fill="#FFF0F5" />
+            <ellipse cx="40" cy="42" rx="12" ry="8" fill="#14532D" />
+            <ellipse cx="60" cy="42" rx="12" ry="8" fill="#15803D" />
+            <ellipse cx="50" cy="30" rx="14" ry="9" fill="#EF4444" />
           </g>
         );
 
+      // --- فاز ۵: گیاهان گلدار ---
+      case 'peace_lily':
+      case 'spathiphyllum_peace':
+      case 'anthurium_red':
+      case 'anthurium_pink':
+      case 'orchid_phalaenopsis':
+      case 'african_violet':
+      case 'gloxinia_velvet':
+      case 'cyclamen_persicum':
+      case 'azalea_bloom':
+      case 'campanula_bell':
+      case 'begonia_rex':
+      case 'begonia_maculata':
+      case 'begonia_wax':
+      case 'kalanchoe':
+      case 'kalanchoe_bloom':
+      case 'coleus_colorful':
+      case 'geranium_zonal':
+      case 'geranium_ivy':
+      case 'geranium_scented':
+      case 'fuchsia_hanging':
+      case 'jasmine_star':
+      case 'gardenia_bloom':
+        return (
+          <g>
+            <path d="M50,54 C35,48 18,35 25,20 C30,10 45,15 50,30 C55,15 70,10 75,20 C82,35 65,48 50,54 Z" fill="#15803D" />
+            <circle
+              cx="42"
+              cy="28"
+              r="7"
+              fill={shape === 'spathiphyllum_peace' || shape === 'peace_lily' || shape === 'gardenia_bloom' ? '#FFFFFF' : '#F43F5E'}
+            />
+            <circle
+              cx="58"
+              cy="28"
+              r="7"
+              fill={shape === 'african_violet' ? '#7E22CE' : '#FB7185'}
+            />
+            <circle cx="50" cy="18" r="8" fill="#FFF1F2" />
+          </g>
+        );
+
+      // --- فاز ۶: رزها و گیاهان تراس و فضای باز ---
+      case 'rose_bush':
+      case 'climbing_rose':
+      case 'rose_dutch':
+      case 'rose_miniature':
+      case 'rose_climbing':
+      case 'rose_dog_nastaran':
+      case 'rose_damask':
+      case 'rose_shrub':
+      case 'lantana_camara':
+      case 'hibiscus_chinese':
+      case 'bougainvillea_paper':
+      case 'jasmine_sambac':
+      case 'honeysuckle_jasmine':
+      case 'cestrum_night':
+      case 'chrysanthemum_mum':
+      case 'dahlia_bloom':
+      case 'petunia_hanging':
+      case 'passiflora_clock':
+      case 'lonicera_vine':
+      case 'euonymus_boxwood':
+      case 'lavender_herb':
+      case 'rosemary_herb':
+        return (
+          <g>
+            <path d="M50,54 C38,45 20,35 25,18 C30,8 45,12 50,28 C55,12 70,8 75,18 C80,35 62,45 50,54 Z" fill="#166534" />
+            <circle cx="40" cy="25" r="8.5" fill={shape === 'lavender_herb' ? '#7E22CE' : '#E11D48'} />
+            <circle cx="60" cy="25" r="8.5" fill={shape === 'lavender_herb' ? '#9333EA' : '#F43F5E'} />
+            <circle cx="50" cy="15" r="9.5" fill="#FDA4AF" />
+          </g>
+        );
+
+      // --- فاز ۷: گیاهان رونده و آویز ---
+      case 'spider_plant':
+      case 'purple_heart':
+      case 'tradescantia':
+      case 'spider_plant_variegated':
+      case 'spider_plant_green':
+      case 'tradescantia_pallida':
+      case 'tradescantia_zebrina':
+      case 'callisia_green':
+      case 'callisia_pink':
+      case 'moses_in_cradle':
+      case 'ivy_hedera':
+      case 'cissus_grape_ivy':
+      case 'hoya_carnosa':
+      case 'hoya_kerrii_heart':
+      case 'string_of_pearls':
+      case 'string_of_hearts':
+      case 'sedum_burros_tail':
+      case 'swedish_ivy_plectranthus':
+        return (
+          <g>
+            <path
+              d="M50,54 C40,48 25,35 28,20 C30,12 42,15 50,30 C58,15 70,12 72,20 C75,35 60,48 50,54 Z"
+              fill={shape === 'tradescantia_pallida' || shape === 'purple_heart' ? '#6B21A8' : '#15803D'}
+            />
+            <path d="M30,54 Q15,65 20,80" stroke="#166534" strokeWidth="2.5" fill="none" />
+            <path d="M70,54 Q85,65 80,80" stroke="#15803D" strokeWidth="2.5" fill="none" />
+            <circle cx="20" cy="80" r="4" fill="#22C55E" />
+            <circle cx="80" cy="80" r="4" fill="#22C55E" />
+            <circle cx="25" cy="70" r="3" fill="#166534" />
+            <circle cx="75" cy="70" r="3" fill="#15803D" />
+          </g>
+        );
+
+      // --- فاز ۸: ساکولنت‌ها ---
+      case 'echeveria':
+      case 'haworthia':
       case 'sedum':
-        return (
-          <g>
-            {[
-              [34, 50], [42, 48], [50, 49], [58, 48], [66, 50],
-              [30, 44], [38, 42], [46, 41], [54, 41], [62, 42], [70, 44],
-              [35, 36], [43, 34], [50, 33], [57, 34], [65, 36],
-              [42, 28], [50, 27], [58, 28]
-            ].map(([cx, cy], idx) => (
-              <circle key={idx} cx={cx} cy={cy} r="5.5" fill={idx % 2 === 0 ? '#84CC16' : '#A3E635'} stroke="#4D7C0F" strokeWidth="1" />
-            ))}
-          </g>
-        );
-
-      case 'zz':
-        return (
-          <g>
-            <path d="M46 55L36 16M54 55L64 14" stroke="#2B5E3F" strokeWidth="2.6" strokeLinecap="round" />
-            {[22, 32, 42, 50].map((y, i) => (
-              <g key={i}>
-                <ellipse cx={33 - i * 1.2} cy={y} rx="6.5" ry="3.5" transform={`rotate(-25 ${33 - i * 1.2} ${y})`} fill="#2E6F4E" stroke="#18422C" strokeWidth="1.2" />
-                <ellipse cx={43 - i * 1.2} cy={y - 2} rx="6.5" ry="3.5" transform={`rotate(25 ${43 - i * 1.2} ${y - 2})`} fill="#3E8E63" stroke="#18422C" strokeWidth="1.2" />
-                <ellipse cx={57 + i * 1.2} cy={y - 2} rx="6.5" ry="3.5" transform={`rotate(-25 ${57 + i * 1.2} ${y - 2})`} fill="#52B788" stroke="#18422C" strokeWidth="1.2" />
-                <ellipse cx={67 + i * 1.2} cy={y} rx="6.5" ry="3.5" transform={`rotate(25 ${67 + i * 1.2} ${y})`} fill="#40916C" stroke="#18422C" strokeWidth="1.2" />
-              </g>
-            ))}
-          </g>
-        );
-
+      case 'aloe':
       case 'adenium':
+      case 'echeveria_elegans':
+      case 'echeveria_black_prince':
+      case 'echeveria_perle':
+      case 'aeonium_zwartkop':
+      case 'aeonium_kiwi':
+      case 'haworthia_fasciata':
+      case 'haworthia_cooperi':
+      case 'haworthia_limifolia':
+      case 'crassula_ovata':
+      case 'crassula_gollum':
+      case 'crassula_buddha':
+      case 'crassula_campfire':
+      case 'portulacaria_afra':
+      case 'sedum_turf':
+      case 'aloe_vera':
+      case 'aloe_variegata':
+      case 'agave_variegated':
+      case 'senecio_blue':
+      case 'lithops_stone':
+      case 'adenium_obesum':
+      case 'haworthia_limifolia_var':
+      case 'echeveria_agavoides':
+      case 'crassula_muscosa':
+      case 'sedum_palmeri':
         return (
           <g>
-            <path d="M40 55C38 42 43 35 46 31C48 28 52 28 54 31C57 35 62 42 60 55Z" fill="#9C8E7E" stroke="#6E6254" strokeWidth="1.8" />
-            <path d="M46 32L39 21M54 32L61 22M50 30V19" stroke="#9C8E7E" strokeWidth="4" strokeLinecap="round" />
-            <ellipse cx="39" cy="21" rx="2.2" ry="1.2" fill="#D4C7B8" />
-            <ellipse cx="61" cy="22" rx="2.2" ry="1.2" fill="#D4C7B8" />
-            <ellipse cx="50" cy="19" rx="2.2" ry="1.2" fill="#D4C7B8" />
+            <ellipse cx="50" cy="45" rx="15" ry="9" fill="#15803D" />
+            <ellipse cx="40" cy="38" rx="10" ry="7" fill="#166534" transform="rotate(-30 40 38)" />
+            <ellipse cx="60" cy="38" rx="10" ry="7" fill="#22C55E" transform="rotate(30 60 38)" />
+            <ellipse cx="50" cy="30" rx="12" ry="8" fill="#4ADE80" />
           </g>
         );
 
-      default: {
-        // موتور ترکیب‌گر الگوریتمی (Procedural Botanical Synthesizer) برای هر گیاه جدیدی که در آینده اضافه شود
-        const seedStr = `${shape}_${plantName}`;
-        let hash = 0;
-        for (let i = 0; i < seedStr.length; i++) {
-          hash = (hash * 31 + seedStr.charCodeAt(i)) % 10000;
-        }
-        const leafCount = 5 + (hash % 3);
-        const palettes = [
-          ['#1B4332', '#2D6A4F', '#52B788', '#95D5B2'],
-          ['#14532D', '#166534', '#22C55E', '#BBF7D0'],
-          ['#365314', '#4D7C0F', '#84CC16', '#ECFCCB'],
-          ['#134E4A', '#0F766E', '#14B8A6', '#99F6E4']
-        ];
-        const chosenColors = palettes[hash % palettes.length];
-        const hasFlowers =
-          plantName.includes('گل') ||
-          plantName.includes('بنفشه') ||
-          plantName.includes('شمعدانی') ||
-          plantName.includes('ارکیده');
-
+      // --- فاز ۹: کاکتوس‌ها و افوربیاها ---
+      case 'cactus':
+      case 'opuntia':
+      case 'christmas_cactus':
+      case 'cactus_mammillaria_hahniana':
+      case 'cactus_mammillaria_gracilis':
+      case 'cactus_mammillaria_plumosa':
+      case 'cactus_golden_barrel':
+      case 'cactus_echinopsis':
+      case 'cactus_astrophytum_star':
+      case 'cactus_gymnocalycium':
+      case 'cactus_moon_grafted':
+      case 'cactus_opuntia_paddle':
+      case 'cactus_bunny_ears':
+      case 'cactus_cereus_column':
+      case 'cactus_rock_monstrosus':
+      case 'cactus_old_man':
+      case 'cactus_foxtail_hanging':
+      case 'cactus_christmas_zygocactus':
+      case 'cactus_eves_needle':
+      case 'euphorbia_pencil':
+      case 'euphorbia_trigona':
+      case 'euphorbia_coral_lactea':
+      case 'euphorbia_milii_crown':
         return (
           <g>
-            <path d="M50 54V24M50 42L36 30M50 38L64 28" stroke={chosenColors[0]} strokeWidth="2.3" strokeLinecap="round" />
-            {Array.from({ length: leafCount }).map((_, idx) => {
-              const spread = (idx - (leafCount - 1) / 2) * 18;
-              const cx = 50 + spread * 0.85;
-              const cy = 24 + Math.abs(spread) * 0.45;
-              return (
-                <g key={idx} transform={`rotate(${spread} ${cx} ${cy})`}>
-                  <ellipse
-                    cx={cx}
-                    cy={cy}
-                    rx="7.5"
-                    ry="13.5"
-                    fill={chosenColors[(idx % 2) + 1]}
-                    stroke={chosenColors[0]}
-                    strokeWidth="1.2"
-                  />
-                  <line x1={cx} y1={cy - 9} x2={cx} y2={cy + 10} stroke={chosenColors[3]} strokeWidth="1" opacity="0.75" />
-                </g>
-              );
-            })}
-            {hasFlowers && (
-              <g>
-                <circle cx="43" cy="18" r="3.6" fill="#EC4899" stroke="#9D174D" strokeWidth="0.9" />
-                <circle cx="57" cy="19" r="3.4" fill="#F43F5E" stroke="#9D174D" strokeWidth="0.9" />
-                <circle cx="50" cy="14" r="4" fill="#E11D48" stroke="#881337" strokeWidth="0.9" />
-              </g>
-            )}
+            <ellipse cx="50" cy="38" rx="14" ry="16" fill="#15803D" />
+            <path d="M36,38 L64,38" stroke="#FEF08A" strokeWidth="1" />
+            <path d="M50,22 L50,54" stroke="#FEF08A" strokeWidth="1" />
+            <circle cx="50" cy="22" r="3" fill="#F43F5E" />
           </g>
         );
-      }
+
+      // --- فاز ۱۰: گیاهان دارویی، معطر و بونسای‌ها ---
+      case 'bonsai_elm':
+      case 'bonsai_carmona':
+      case 'bonsai_schefflera':
+      case 'bonsai_podocarpus':
+      case 'bonsai_maple':
+      case 'herb_peppermint':
+      case 'herb_basil':
+      case 'herb_thyme':
+      case 'herb_lemon_verbena':
+      case 'citrus_calamondin':
+      case 'citrus_kumquat':
+      case 'citrus_lemon':
+      case 'ornamental_pepper':
+      case 'potted_strawberry':
+        return (
+          <g>
+            <path d="M48,54 L47,40 C46,35 54,35 53,40 L52,54 Z" fill="#5C4033" />
+            <circle cx="50" cy="26" r="16" fill={shape === 'bonsai_maple' ? '#B91C1C' : '#15803D'} />
+            <circle cx="38" cy="32" r="11" fill={shape === 'bonsai_maple' ? '#991B1B' : '#166534'} />
+            <circle cx="62" cy="32" r="11" fill={shape === 'bonsai_maple' ? '#DC2626' : '#22C55E'} />
+          </g>
+        );
+
+      default:
+        return (
+          <g>
+            <path d="M50,54 C40,45 25,30 30,15 C33,8 45,12 50,28 C55,12 67,8 70,15 C75,30 60,45 50,54 Z" fill="#15803D" />
+          </g>
+        );
     }
   };
 
   return (
     <svg className="w-23 h-23 drop-shadow-xs" viewBox="0 0 100 90" fill="none">
-      {renderFoliage()}
-      {renderPotGeometry()}
+      {/* ۱. رندر گلدان سه‌بعدی و بافت سطحی از فاز ۱۱ */}
+      <PotVectorGraphic shape={effectivePotShape} color={potColor} />
+      {/* ۲. رندر شاخ‌وبرگ گیاه از فاز ۱۲ */}
+      {renderPlantFoliage()}
     </svg>
   );
 };

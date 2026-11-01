@@ -13,6 +13,7 @@ import {
 import { CareCalculator } from './engine/careCalculator';
 import {
   IconLeafLogo,
+  IconAddSprout,
   IconBell,
   IconSettings,
   IconWaterDrop,
@@ -21,6 +22,7 @@ import {
   IconRotate90,
   PlantStylizedIllustration
 } from './components/icons/CustomIcons';
+
 import { PlantProfileSheet, type AccessRole } from './components/profile/PlantProfileSheet';
 import {
   AddPlantModal,
@@ -575,13 +577,88 @@ export default function App() {
     ({ metrics }) => metrics.isWeekendShifted
   ).length;
 
-  const averageMoisturePercent =
-    evaluatedPlants.length > 0
+  // محاسبه مهندسی‌شده اقلیم، فصل خورشیدی، دمای محیط و شاخص رطوبت خاک
+  const persianMonthNum = Number(
+    new Intl.DateTimeFormat('fa-IR-u-ca-persian', { month: 'numeric' })
+      .format(new Date())
+      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+  ) || 7;
+
+  const seasonInfo =
+    persianMonthNum <= 3
+      ? { name: 'بهار', baseTemp: 22, seasonMoistureMod: 0, evapBase: 'ملایم' }
+      : persianMonthNum <= 6
+      ? { name: 'تابستان', baseTemp: 26, seasonMoistureMod: -5, evapBase: 'متوسط' }
+      : persianMonthNum <= 9
+      ? { name: 'پاییز', baseTemp: 21, seasonMoistureMod: -2, evapBase: 'متعادل' }
+      : { name: 'زمستان', baseTemp: 19, seasonMoistureMod: -3, evapBase: 'کم' };
+
+  const activeGardenObj =
+    activeGarden !== 'all' && activeGarden !== 'thirsty'
+      ? spaceGardens.find((g) => g.id === activeGarden) || null
+      : null;
+
+  const plantsForClimate =
+    activeGardenObj
+      ? evaluatedPlants.filter(({ plant }) => plant.garden === activeGardenObj.id)
+      : evaluatedPlants;
+
+  const rawSoilMoistureAvg =
+    plantsForClimate.length > 0
       ? Math.round(
-          evaluatedPlants.reduce((acc, item) => acc + item.metrics.moisturePercent, 0) /
-            evaluatedPlants.length
+          plantsForClimate.reduce((acc, item) => acc + item.metrics.moisturePercent, 0) /
+            plantsForClimate.length
         )
       : 100;
+
+  const lightMoistureMod =
+    activeGardenObj?.lightLevel === 'high'
+      ? -4
+      : activeGardenObj?.lightLevel === 'low'
+      ? 3
+      : 0;
+
+  const lightTempMod =
+    activeGardenObj?.lightLevel === 'high'
+      ? 2
+      : activeGardenObj?.lightLevel === 'low'
+      ? -1
+      : 0;
+
+  const radiatorMoisturePenalty = currentSpace.radiatorOn ? -12 : 0;
+  const radiatorTempBoost = currentSpace.radiatorOn ? 4 : 0;
+
+  const averageMoisturePercent =
+    plantsForClimate.length > 0
+      ? Math.max(
+          8,
+          Math.min(
+            100,
+            rawSoilMoistureAvg +
+              seasonInfo.seasonMoistureMod +
+              lightMoistureMod +
+              radiatorMoisturePenalty
+          )
+        )
+      : 100;
+
+  const estimatedRoomTemp = seasonInfo.baseTemp + lightTempMod + radiatorTempBoost;
+
+  const climateRightStatus = currentSpace.radiatorOn
+    ? 'هوای گرم و خشک'
+    : activeGardenObj?.lightLevel === 'high'
+    ? 'نور زیاد محیط'
+    : activeGardenObj?.lightLevel === 'low'
+    ? 'سایه و آرامش'
+    : 'دمای متعادل';
+
+  const climateLeftEvap = currentSpace.radiatorOn
+    ? 'تبخیر بالا'
+    : activeGardenObj?.lightLevel === 'high'
+    ? 'تبخیر متوسط'
+    : activeGardenObj?.lightLevel === 'low'
+    ? 'تبخیر کم'
+    : `تبخیر ${seasonInfo.evapBase}`;
 
   const filteredEvaluated = evaluatedPlants.filter(({ plant, metrics }) => {
     if (
@@ -856,7 +933,7 @@ export default function App() {
                 <span
                   title={cloudSynced ? 'متصل به فضای ابری' : 'ذخیره در حافظه دستگاه'}
                   className={`w-2 h-2 rounded-full shrink-0 ${
-                    cloudSynced ? 'bg-emerald-600' : 'bg-[#B47B26]'
+                    cloudSynced ? 'bg-emerald-600' : 'bg-[#2B7A9B]'
                   }`}
                 />
               </div>
@@ -885,7 +962,7 @@ export default function App() {
                   setPreviewMemberId(null);
                   setUserRole('owner');
                 }}
-                className="px-2 h-[36px] rounded-xl bg-[#B47B26] text-white text-[10px] font-bold whitespace-nowrap"
+                className="px-2 h-[36px] rounded-xl bg-[#3A5A40] text-white text-[10px] font-bold whitespace-nowrap"
               >
                 بازگشت به مدیریت
               </button>
@@ -894,9 +971,12 @@ export default function App() {
             {isOwner && (
               <button
                 onClick={() => setAddPlantOpen(true)}
-                className="font-heading px-2.5 h-[36px] rounded-xl bg-[#2E5A44] text-[#FDFBF7] text-[11px] font-bold flex items-center justify-center gap-1 warm-shadow whitespace-nowrap active:scale-95 transition-transform"
+                title="افزودن گیاه جدید به گلخانه"
+                className="font-heading pl-2.5 pr-1.5 h-[36px] rounded-xl bg-gradient-to-b from-[#2E5A44] to-[#234735] text-[#FDFBF7] text-[11px] font-bold flex items-center justify-center gap-1.5 border border-[#1C2822]/15 warm-shadow whitespace-nowrap active:scale-95 transition-all"
               >
-                <span className="text-[13px] leading-none">+</span>
+                <span className="w-[22px] h-[22px] rounded-lg bg-[#FDFBF7]/15 border border-[#FDFBF7]/20 flex items-center justify-center shrink-0">
+                  <IconAddSprout className="w-3.5 h-3.5 text-[#FDFBF7]" />
+                </span>
                 <span>گیاه</span>
               </button>
             )}
@@ -908,14 +988,22 @@ export default function App() {
                   setThirstySubFilter('all_due');
                 }}
                 title="مشاهده تفکیک‌شده گیاهان نیازمند آبیاری، غبارپاشی و چرخش"
-                className={`relative w-[36px] h-[36px] rounded-xl border flex items-center justify-center warm-shadow shrink-0 transition-colors ${
+                className={`relative w-[36px] h-[36px] rounded-xl border flex items-center justify-center warm-shadow shrink-0 transition-all active:scale-95 ${
                   activeGarden === 'thirsty'
-                    ? 'bg-[#C85A32] text-white border-[#C85A32]'
-                    : 'bg-[#FDFBF7] text-[#1C2822] border-[#E8E2D5]'
+                    ? 'bg-[#1C2822] text-[#FDFBF7] border-[#1C2822] ring-2 ring-[#2E5A44]/25'
+                    : 'bg-[#FDFBF7] text-[#2E5A44] border-[#E8E2D5] hover:border-[#2E5A44]/40'
                 }`}
               >
                 <IconBell className="w-[17px] h-[17px]" />
-                <span className="persian-num absolute -top-1 -left-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#C85A32] text-white text-[9.5px] font-semibold flex items-center justify-center border border-[#FDFBF7]">
+                <span
+                  className={`persian-num absolute -top-1 -left-1 min-w-[17px] h-[17px] px-1 rounded-full text-[9.5px] font-bold flex items-center justify-center border border-[#FDFBF7] transition-colors ${
+                    activeGarden === 'thirsty'
+                      ? 'bg-[#2E5A44] text-white'
+                      : totalAttentionPlantsCount > 0
+                      ? 'bg-[#2B7A9B] text-white'
+                      : 'bg-[#E6F0EB] text-[#2E5A44]'
+                  }`}
+                >
                   {toPersianNum(totalAttentionPlantsCount)}
                 </span>
               </button>
@@ -925,7 +1013,7 @@ export default function App() {
               <button
                 onClick={() => setSettingsOpen(true)}
                 title="مرکز مدیریت گلخانه‌ها و اعضا"
-                className="w-[36px] h-[36px] rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] flex items-center justify-center text-[#1C2822] warm-shadow shrink-0"
+                className="w-[36px] h-[36px] rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] flex items-center justify-center text-[#1C2822] warm-shadow shrink-0 active:scale-95 transition-transform"
               >
                 <IconSettings className="w-[17px] h-[17px]" />
               </button>
@@ -934,7 +1022,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-3.5 pt-3 space-y-3">
+      <main className="max-w-md mx-auto px-3 pt-3 space-y-3">
         {/* نوار سوییچ بین گلخانه محل کار و گلخانه خانه */}
         {accessibleSpaces.length > 1 && (
           <section className="grid grid-cols-2 gap-1.5 bg-[#FDFBF7] p-1 rounded-2xl border border-[#E8E2D5] warm-shadow">
@@ -971,143 +1059,317 @@ export default function App() {
           </section>
         )}
 
-        {/* کارت‌های وضعیت Bento (هر دو کارت ۱۰۰٪ تراز و بدون هیچ‌گونه بیرون‌زدگی در عرض 360px) */}
-        <section className="grid grid-cols-2 gap-2.5 items-stretch">
-          {/* کارت ۱: مرکز رسیدگی امروز */}
-          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-2xl p-2.5 warm-shadow flex flex-col justify-between min-h-[100px] overflow-hidden">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[11px] font-extrabold text-[#1C2822] truncate">
-                {isVisitor ? 'جمعیت گلخانه' : 'مرکز رسیدگی'}
-              </span>
+        {/* کارت‌های وضعیت Bento (کالیبره‌شده برای Galaxy A54 بدون حتی یک سه‌نقطه) */}
+        <section className="grid grid-cols-2 gap-2 items-stretch">
+          {/* کارت ۱: مرکز رسیدگی */}
+          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-2xl p-2 warm-shadow flex flex-col justify-between min-h-[110px]">
+            {/* ردیف ۱ هدر (ارتفاع ۲۲ پیکسل) */}
+            <div className="h-[22px] flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2E5A44] shrink-0" />
+                <span className="font-heading text-[10.5px] font-extrabold text-[#1C2822] whitespace-nowrap">
+                  {isVisitor ? 'جمعیت گلخانه' : 'مرکز رسیدگی'}
+                </span>
+              </div>
+
               {!isVisitor && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveGarden(activeGarden === 'thirsty' ? 'all' : 'thirsty');
-                    setThirstySubFilter('all_due');
-                  }}
-                  className="persian-num px-1.5 py-0.5 rounded-md bg-[#FCEEE9] text-[#C85A32] text-[9.5px] font-bold shrink-0"
-                >
-                  {toPersianNum(totalAttentionPlantsCount)} مورد ▾
-                </button>
+                activeGarden === 'thirsty' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveGarden('all');
+                      setThirstySubFilter('all_due');
+                    }}
+                    className="h-[18px] px-1.5 rounded-md bg-[#1C2822] text-[#FDFBF7] text-[8px] font-bold flex items-center gap-0.5 shrink-0 whitespace-nowrap active:scale-95 transition-transform"
+                  >
+                    <span>همه</span>
+                    <span>✕</span>
+                  </button>
+                ) : (
+                  <span
+                    className={`persian-num h-[18px] px-1.5 rounded-md text-[8px] font-bold flex items-center shrink-0 whitespace-nowrap border ${
+                      totalAttentionPlantsCount > 0
+                        ? 'bg-[#EBF4F8] text-[#1F6380] border-[#2B7A9B]/25'
+                        : 'bg-[#E6F0EB] text-[#2E5A44] border-[#2E5A44]/20'
+                    }`}
+                  >
+                    {totalAttentionPlantsCount > 0
+                      ? `${toPersianNum(totalAttentionPlantsCount)} در نوبت`
+                      : 'طراوت کامل'}
+                  </span>
+                )
               )}
             </div>
 
             {isVisitor ? (
-              <div className="mt-1.5">
-                <div className="persian-num text-[13px] font-bold text-[#1C2822]">
+              <div className="my-1.5 h-[46px] bg-[#F6F3EC]/80 border border-[#E8E2D5] rounded-xl px-2 flex flex-col justify-center">
+                <div className="persian-num text-[11px] font-extrabold text-[#1C2822] whitespace-nowrap">
                   {toPersianNum(spaceActivePlants.length)} گونه گیاه طبیعی
                 </div>
-                <p className="text-[10px] text-[#2E5A44] font-semibold mt-1">
-                  🌿 مشاهده شناسنامه با لمس کارت
+                <p className="text-[8.5px] text-[#2E5A44] font-semibold mt-0.5 whitespace-nowrap">
+                  🌿 مشاهده شناسنامه گیاه
                 </p>
               </div>
             ) : (
-              <>
-                <div className="grid grid-cols-3 gap-1 my-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
+              /* ردیف ۲: سه کاشی عملیاتی (آبیاری، غبارپاشی، چرخش با پالت زیتونی-بوتانیکال) */
+              <div className="grid grid-cols-3 gap-1 my-1.5 h-[46px]">
+                {/* ۱. آبیاری (آبی معدنی) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeGarden === 'thirsty' && thirstySubFilter === 'water_only') {
+                      setActiveGarden('all');
+                    } else {
                       setActiveGarden('thirsty');
                       setThirstySubFilter('water_only');
-                    }}
-                    className={`py-1 px-0.5 rounded-xl border text-center transition-all ${
-                      activeGarden === 'thirsty' && thirstySubFilter === 'water_only'
-                        ? 'bg-[#C85A32] text-white border-[#C85A32]'
-                        : 'bg-[#FCEEE9]/70 text-[#C85A32] border-[#C85A32]/20'
-                    }`}
-                  >
-                    <div className="persian-num text-[11px] font-extrabold leading-none">
-                      💧{toPersianNum(thirstyCount)}
-                    </div>
-                    <div className="text-[8.5px] font-bold mt-1 leading-none">آبیاری</div>
-                  </button>
+                    }
+                  }}
+                  className={`h-full px-0.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    activeGarden === 'thirsty' && thirstySubFilter === 'water_only'
+                      ? 'bg-[#1F6380] text-[#FDFBF7] border-[#1F6380] shadow-xs'
+                      : 'bg-[#EBF4F8]/90 text-[#1F6380] border-[#2B7A9B]/25'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-0.5 leading-none">
+                    <IconWaterDrop className="w-3 h-3 shrink-0" />
+                    <span className="persian-num text-[10.5px] font-extrabold">
+                      {toPersianNum(thirstyCount)}
+                    </span>
+                  </div>
+                  <div className="text-[8px] font-bold mt-1.5 leading-none whitespace-nowrap">
+                    آبیاری
+                  </div>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
+                {/* ۲. غبارپاشی (سبز مریم‌گلی) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeGarden === 'thirsty' && thirstySubFilter === 'mist_only') {
+                      setActiveGarden('all');
+                    } else {
                       setActiveGarden('thirsty');
                       setThirstySubFilter('mist_only');
-                    }}
-                    className={`py-1 px-0.5 rounded-xl border text-center transition-all ${
-                      activeGarden === 'thirsty' && thirstySubFilter === 'mist_only'
-                        ? 'bg-[#2B7A9B] text-white border-[#2B7A9B]'
-                        : 'bg-[#E8F4F8]/80 text-[#2B7A9B] border-[#2B7A9B]/20'
-                    }`}
-                  >
-                    <div className="persian-num text-[11px] font-extrabold leading-none">
-                      💦{toPersianNum(mistCount)}
-                    </div>
-                    <div className="text-[8.5px] font-bold mt-1 leading-none">غبار</div>
-                  </button>
+                    }
+                  }}
+                  className={`h-full px-0.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    activeGarden === 'thirsty' && thirstySubFilter === 'mist_only'
+                      ? 'bg-[#2E5A44] text-[#FDFBF7] border-[#2E5A44] shadow-xs'
+                      : 'bg-[#E8F3EE]/95 text-[#26634C] border-[#2E5A44]/25'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-0.5 leading-none">
+                    <IconMistSpray className="w-3 h-3 shrink-0" />
+                    <span className="persian-num text-[10.5px] font-extrabold">
+                      {toPersianNum(mistCount)}
+                    </span>
+                  </div>
+                  <div className="text-[8px] font-bold mt-1.5 leading-none whitespace-nowrap">
+                    غبارپاشی
+                  </div>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
+                {/* ۳. چرخش (سبز زیتونی و خزه‌ای لوکس - بدون تناژ قرمز/نارنجی) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeGarden === 'thirsty' && thirstySubFilter === 'rotate_only') {
+                      setActiveGarden('all');
+                    } else {
                       setActiveGarden('thirsty');
                       setThirstySubFilter('rotate_only');
-                    }}
-                    className={`py-1 px-0.5 rounded-xl border text-center transition-all ${
-                      activeGarden === 'thirsty' && thirstySubFilter === 'rotate_only'
-                        ? 'bg-[#B47B26] text-white border-[#B47B26]'
-                        : 'bg-[#FEF6E7]/90 text-[#B47B26] border-[#B47B26]/25'
-                    }`}
-                  >
-                    <div className="persian-num text-[11px] font-extrabold leading-none">
-                      🔄{toPersianNum(rotateCount)}
-                    </div>
-                    <div className="text-[8.5px] font-bold mt-1 leading-none">چرخش</div>
-                  </button>
-                </div>
-
-                <div className="persian-num text-[9.5px] text-[#2E5A44] font-semibold truncate">
-                  {weekendShiftCount > 0
-                    ? `⚡ ${toPersianNum(weekendShiftCount)} نوبت پیش از تعطیلی`
-                    : '✨ لمس هر بخش جهت تفکیک'}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* کارت ۲: اقلیم گلخانه و کلید تمام‌عرض شوفاژ (کاملاً تراز و بدون بیرون‌زدگی) */}
-          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-2xl p-2.5 warm-shadow flex flex-col justify-between min-h-[100px] overflow-hidden">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[11px] font-extrabold text-[#1C2822] truncate">
-                اقلیم گلخانه
-              </span>
-              <span className="persian-num px-1.5 py-0.5 rounded-md bg-[#E8F4F8] text-[#2B7A9B] text-[9.5px] font-extrabold shrink-0">
-                💧 {toPersianNum(averageMoisturePercent)}٪
-              </span>
-            </div>
-
-            {!isVisitor ? (
-              <button
-                type="button"
-                onClick={toggleSpaceRadiator}
-                className={`w-full my-1.5 py-1.5 px-2.5 rounded-xl text-[10px] font-bold border transition-all flex items-center justify-between active:scale-[0.98] ${
-                  currentSpace.radiatorOn
-                    ? 'bg-[#FCEEE9] text-[#C85A32] border-[#C85A32]/30'
-                    : 'bg-[#E6F0EB] text-[#2E5A44] border-[#2E5A44]/20'
-                }`}
-              >
-                <span className="truncate">وضعیت شوفاژ:</span>
-                <span className="shrink-0 font-extrabold">
-                  {currentSpace.radiatorOn ? '🔥 روشن' : '🍃 خاموش'}
-                </span>
-              </button>
-            ) : (
-              <div className="w-full my-1.5 h-2 bg-[#F6F3EC] rounded-full overflow-hidden border border-[#E8E2D5]">
-                <div
-                  className="h-full bg-gradient-to-l from-[#2E5A44] to-[#2B7A9B] rounded-full"
-                  style={{ width: `${averageMoisturePercent}%` }}
-                />
+                    }
+                  }}
+                  className={`h-full px-0.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    activeGarden === 'thirsty' && thirstySubFilter === 'rotate_only'
+                      ? 'bg-[#3A5A40] text-[#FDFBF7] border-[#3A5A40] shadow-xs'
+                      : 'bg-[#EEF3EC] text-[#3A5A40] border-[#3A5A40]/25'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-0.5 leading-none">
+                    <IconRotate90 className="w-3 h-3 shrink-0" />
+                    <span className="persian-num text-[10.5px] font-extrabold">
+                      {toPersianNum(rotateCount)}
+                    </span>
+                  </div>
+                  <div className="text-[8px] font-bold mt-1.5 leading-none whitespace-nowrap">
+                    چرخش
+                  </div>
+                </button>
               </div>
             )}
 
-            <div className="text-[9.5px] text-[#5A655E] font-semibold truncate">
-              {currentSpace.radiatorOn
-                ? '🔥 تبخیر بالا • کاهش دوره آب'
-                : '✅ دمای متعادل • تبخیر عادی'}
+            {/* ردیف ۳ فوتر مرکز رسیدگی (بدون سه‌نقطه در تمام حالت‌ها) */}
+            <div className="h-[23px] px-1.5 rounded-lg bg-[#F6F3EC] border border-[#E8E2D5]/90 flex items-center justify-between gap-1 text-[8px] font-bold whitespace-nowrap">
+              {activeGarden === 'thirsty' ? (
+                <>
+                  <span className="text-[#1C2822]">
+                    {thirstySubFilter === 'water_only'
+                      ? 'فیلتر: آبیاری'
+                      : thirstySubFilter === 'mist_only'
+                      ? 'فیلتر: غبارپاشی'
+                      : thirstySubFilter === 'rotate_only'
+                      ? 'فیلتر: چرخش'
+                      : thirstySubFilter === 'fert_repot'
+                      ? 'فیلتر: کود و خاک'
+                      : 'فیلتر: نوبت رسیدگی'}
+                  </span>
+                  <span className="text-[#2E5A44]">فعال ✓</span>
+                </>
+              ) : weekendShiftCount > 0 ? (
+                <>
+                  <span className="persian-num text-[#1F6380]">
+                    ⚡ {toPersianNum(weekendShiftCount)} نوبت تعطیلات
+                  </span>
+                  <span className="text-[#2E5A44]">تفکیک سریع</span>
+                </>
+              ) : totalAttentionPlantsCount === 0 ? (
+                <>
+                  <span className="text-[#2E5A44]">✓ همه سیراب و شاداب</span>
+                  <span className="text-[#5A655E]">تفکیک سریع</span>
+                </>
+              ) : (
+                <>
+                  <span className="persian-num text-[#5A655E]">
+                    سیراب:{' '}
+                    <strong className="text-[#2E5A44]">
+                      {toPersianNum(Math.max(0, spaceActivePlants.length - thirstyCount))}
+                    </strong>{' '}
+                    از {toPersianNum(spaceActivePlants.length)}
+                  </span>
+                  <span className="text-[#2E5A44]">تفکیک سریع</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* کارت ۲: اقلیم گلخانه (کاملاً قرینه و بدون حتی یک سه‌نقطه) */}
+          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-2xl p-2 warm-shadow flex flex-col justify-between min-h-[110px]">
+            {/* ردیف ۱ هدر (عنوان کامل اقلیم گلخانه + درصد رطوبت) */}
+            <div className="h-[22px] flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 shrink-0">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    currentSpace.radiatorOn ? 'bg-[#B47B26] animate-pulse' : 'bg-[#2B7A9B]'
+                  }`}
+                />
+                <span className="font-heading text-[10.5px] font-extrabold text-[#1C2822] whitespace-nowrap">
+                  اقلیم گلخانه
+                </span>
+              </div>
+
+              <span
+                title="میانگین وزنی رطوبت خاک گلدان‌ها با احتساب فصل، نور باغچه و وضعیت شوفاژ"
+                className={`persian-num h-[18px] px-1.5 rounded-md text-[8px] font-extrabold flex items-center gap-0.5 shrink-0 whitespace-nowrap border ${
+                  averageMoisturePercent < 40
+                    ? 'bg-[#FDF5E6] text-[#9E681C] border-[#B47B26]/30'
+                    : 'bg-[#EBF4F8] text-[#1F6380] border-[#2B7A9B]/25'
+                }`}
+              >
+                <IconWaterDrop className="w-2.5 h-2.5 shrink-0" />
+                <span>رطوبت: {toPersianNum(averageMoisturePercent)}٪</span>
+              </span>
+            </div>
+
+            {/* ردیف ۲: دو کاشی متقارن (کاشی شوفاژ + کاشی فصل و دما به فارسی روان) */}
+            {!isVisitor ? (
+              <div className="grid grid-cols-2 gap-1.5 my-1.5 h-[46px]">
+                {/* کاشی ۱: شوفاژ */}
+                <button
+                  type="button"
+                  onClick={toggleSpaceRadiator}
+                  className={`h-full px-1 rounded-xl border transition-all flex flex-col items-center justify-center active:scale-95 ${
+                    currentSpace.radiatorOn
+                      ? 'bg-[#FDF5E6] text-[#9E681C] border-[#B47B26]/40 shadow-xs'
+                      : 'bg-[#E8F3EE]/95 text-[#26634C] border-[#2E5A44]/25'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-1 leading-none">
+                    {currentSpace.radiatorOn ? (
+                      <svg
+                        className="w-3 h-3 text-[#B47B26] animate-pulse shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4Z" />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-3 h-3 text-[#2E5A44] shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                      </svg>
+                    )}
+                    <span className="text-[9.5px] font-extrabold whitespace-nowrap">
+                      {currentSpace.radiatorOn ? 'روشن' : 'خاموش'}
+                    </span>
+                  </div>
+                  <div className="text-[8px] font-bold mt-1.5 leading-none whitespace-nowrap">
+                    گرمایش شوفاژ
+                  </div>
+                </button>
+
+                {/* کاشی ۲: فصل و دمای محیط با نگارش ۱۰۰٪ فارسی */}
+                <div className="h-full px-1 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] flex flex-col items-center justify-center">
+                  <div className="flex items-center justify-center gap-0.5 text-[9.5px] font-extrabold text-[#1C2822] leading-none whitespace-nowrap">
+                    <svg
+                      className="w-3 h-3 text-[#3A5A40] shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.1"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z" />
+                    </svg>
+                    <span>فصل {seasonInfo.name}</span>
+                  </div>
+                  <div className="persian-num text-[8px] font-bold text-[#5A655E] mt-1.5 leading-none whitespace-nowrap">
+                    دما: {toPersianNum(estimatedRoomTemp)} درجه
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="my-1.5 h-[46px] bg-[#F6F3EC]/80 border border-[#E8E2D5] rounded-xl px-2 flex flex-col justify-center">
+                <div className="flex items-center justify-between text-[8.5px] font-bold text-[#1C2822] mb-1.5 whitespace-nowrap">
+                  <span>فصل {seasonInfo.name}</span>
+                  <span className="persian-num">دما: {toPersianNum(estimatedRoomTemp)} درجه</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#FDFBF7] rounded-full overflow-hidden border border-[#E8E2D5]">
+                  <div
+                    className="h-full bg-gradient-to-l from-[#2E5A44] to-[#2B7A9B] rounded-full transition-all duration-500"
+                    style={{ width: `${averageMoisturePercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ردیف ۳ فوتر اقلیم گلخانه (قرینه با کارت اول و بدون سه‌نقطه) */}
+            <div
+              className={`h-[23px] px-1.5 rounded-lg border flex items-center justify-between gap-1 text-[8px] font-bold whitespace-nowrap transition-colors ${
+                currentSpace.radiatorOn
+                  ? 'bg-[#FDF5E6] border-[#B47B26]/30 text-[#9E681C]'
+                  : 'bg-[#F6F3EC] border-[#E8E2D5]/90 text-[#5A655E]'
+              }`}
+            >
+              <span className={currentSpace.radiatorOn ? 'text-[#9E681C]' : 'text-[#1C2822]'}>
+                {climateRightStatus}
+              </span>
+              <span className={currentSpace.radiatorOn ? 'text-[#9E681C]' : 'text-[#2E5A44]'}>
+                {climateLeftEvap}
+              </span>
             </div>
           </div>
         </section>
@@ -1163,14 +1425,16 @@ export default function App() {
               }}
               className={`shrink-0 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 activeGarden === 'thirsty'
-                  ? 'bg-[#C85A32] text-white warm-shadow'
-                  : 'bg-[#FDFBF7] text-[#C85A32] border border-[#E8E2D5]'
+                  ? 'bg-[#1C2822] text-[#FDFBF7] warm-shadow'
+                  : 'bg-[#FDFBF7] text-[#2E5A44] border border-[#E8E2D5]'
               }`}
             >
-              <span>🔔 نیازمند رسیدگی</span>
+              <span>🔔 نوبت رسیدگی</span>
               <span
                 className={`persian-num px-1.5 py-0.2 rounded-md text-[10.5px] ${
-                  activeGarden === 'thirsty' ? 'bg-white/20 text-white' : 'bg-[#FCEEE9] text-[#C85A32]'
+                  activeGarden === 'thirsty'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#E6F0EB] text-[#2E5A44]'
                 }`}
               >
                 {toPersianNum(totalAttentionPlantsCount)}
@@ -1204,16 +1468,16 @@ export default function App() {
           })}
         </section>
 
-        {/* پنل تفکیک‌شده زنگوله بالای صفحه */}
+        {/* پنل تفکیک‌شده زنگوله بالای صفحه (با پالت یکدست بوتانیکال بدون رنگ قرمز تند) */}
         {activeGarden === 'thirsty' && !isVisitor && (
-          <section className="bg-[#FDFBF7] border-2 border-[#C85A32]/30 rounded-2xl p-2.5 space-y-2 warm-shadow">
+          <section className="bg-[#FDFBF7] border border-[#2E5A44]/30 rounded-2xl p-2.5 space-y-2 warm-shadow">
             <div className="flex items-center justify-between">
-              <span className="text-[11.5px] font-bold text-[#1C2822]">
-                🔔 تفکیک هوشمند گیاهان نیازمند رسیدگی در «{currentSpace.name}»:
+              <span className="text-[11px] font-bold text-[#1C2822]">
+                🌿 تفکیک هوشمند گیاهان نیازمند رسیدگی در «{currentSpace.name}»:
               </span>
               <button
                 onClick={() => setActiveGarden('all')}
-                className="text-[10.5px] font-bold text-[#5A655E] px-1.5"
+                className="text-[10px] font-bold text-[#2E5A44] bg-[#E6F0EB] px-2 py-0.5 rounded-lg"
               >
                 نمایش همه ✕
               </button>
@@ -1222,7 +1486,7 @@ export default function App() {
               {[
                 {
                   id: 'all_due',
-                  label: 'همه موارد',
+                  label: 'همه نوبت‌ها',
                   count: totalAttentionPlantsCount,
                   activeClass: 'bg-[#1C2822] text-white border-[#1C2822]'
                 },
@@ -1230,25 +1494,25 @@ export default function App() {
                   id: 'water_only',
                   label: '💧 نیازمند آبیاری',
                   count: thirstyCount,
-                  activeClass: 'bg-[#C85A32] text-white border-[#C85A32]'
+                  activeClass: 'bg-[#1F6380] text-white border-[#1F6380]'
                 },
                 {
                   id: 'mist_only',
-                  label: '💦 نیازمند غبارپاشی',
+                  label: '💨 نیازمند غبارپاشی',
                   count: mistCount,
-                  activeClass: 'bg-[#2B7A9B] text-white border-[#2B7A9B]'
+                  activeClass: 'bg-[#2E5A44] text-white border-[#2E5A44]'
                 },
                 {
                   id: 'rotate_only',
                   label: '🔄 چرخش ۹۰ درجه',
                   count: rotateCount,
-                  activeClass: 'bg-[#B47B26] text-white border-[#B47B26]'
+                  activeClass: 'bg-[#3A5A40] text-white border-[#3A5A40]'
                 },
                 {
                   id: 'fert_repot',
                   label: '🧪 کود / تعویض خاک',
                   count: fertOrRepotCount,
-                  activeClass: 'bg-[#2E5A44] text-white border-[#2E5A44]'
+                  activeClass: 'bg-[#2B7A9B] text-white border-[#2B7A9B]'
                 }
               ].map((tab) => {
                 const isSelected = thirstySubFilter === tab.id;
@@ -1257,15 +1521,15 @@ export default function App() {
                     key={tab.id}
                     type="button"
                     onClick={() => setThirstySubFilter(tab.id as ThirstySubFilterType)}
-                    className={`py-1.5 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-between gap-1 transition-all ${
+                    className={`py-1.5 px-2 rounded-xl border text-[10.5px] font-bold flex items-center justify-between gap-1 transition-all whitespace-nowrap ${
                       isSelected
                         ? tab.activeClass
                         : 'bg-[#F6F3EC] text-[#1C2822] border-[#E8E2D5]'
                     }`}
                   >
-                    <span className="truncate">{tab.label}</span>
+                    <span>{tab.label}</span>
                     <span
-                      className={`persian-num px-1.5 py-0.2 rounded-md text-[10px] ${
+                      className={`persian-num px-1.5 py-0.2 rounded-md text-[9.5px] ${
                         isSelected ? 'bg-white/25 text-white' : 'bg-[#FDFBF7] text-[#5A655E]'
                       }`}
                     >

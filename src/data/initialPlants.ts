@@ -92,20 +92,45 @@ export type PotShapeType =
   | 'round'
   | 'hex'
   | 'trough'
+  | 'round_smooth'
   | 'round_ribbed'
-  | 'faceted_gem'
+  | 'cylinder_modern'
+  | 'bowl_saucer'
+  | 'conical_tall'
+  | 'square_minimal'
   | 'square_patterned'
+  | 'faceted_gem'
   | 'chalice_urn'
   | 'trough_fluted'
-  | 'cylinder_modern';
+  | 'hanging_basket'
+  | 'bonsai_tray'
+  | 'amphora_clay'
+  | 'hexagon_concrete'
+  | 'wood_stand_modern'
+  | 'egg_planter'
+  | 'footed_cauldron'
+  | 'lotus_scalloped'
+  | 'tiered_pagoda'
+  | 'woven_belly';
 
 export type PotColorType =
   | 'white'
-  | 'black'
-  | 'mint'
+  | 'cream'
   | 'terracotta'
+  | 'terracotta_light'
+  | 'mint'
+  | 'forest_green'
   | 'grey'
-  | 'cream';
+  | 'concrete'
+  | 'charcoal'
+  | 'black'
+  | 'sand'
+  | 'khaki'
+  | 'cobalt'
+  | 'blush'
+  | 'olive'
+  | 'terrazzo_cream'
+  | 'wood_brown';
 
 export interface PlantEntity {
   id: string;
