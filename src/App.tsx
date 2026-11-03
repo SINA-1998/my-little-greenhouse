@@ -162,7 +162,11 @@ export default function App() {
       qrPlant
   );
 
-  // ۱. قفل اسکرول صفحه پشت مدال‌ها
+  const isSubModalOpen = Boolean(
+    confirmState || guideTopic || editingPlant || qrPlant
+  );
+
+  // ۱. قفل اسکرول صفحه پشت مودال‌ها
   useEffect(() => {
     document.body.style.overflow = isAnyModalOpen ? 'hidden' : '';
     return () => {
@@ -170,8 +174,11 @@ export default function App() {
     };
   }, [isAnyModalOpen]);
 
-  // ۲. مدیریت هوشمند دکمه Back گوشی موبایل (بستن پروفایل گیاه و مدال‌ها به جای خروج از برنامه!)
+  // ۲. مدیریت هوشمند و ۲ لایه‌ای دکمه Back گوشی موبایل
   const hasModalHistoryRef = useRef<boolean>(false);
+  const hasSubModalHistoryRef = useRef<boolean>(false);
+  const ignoreNextPopRef = useRef<boolean>(false);
+
   const modalStateRef = useRef({
     selectedPlantId,
     confirmState,
@@ -193,44 +200,68 @@ export default function App() {
     qrPlant
   };
 
+  // لایه اول تاریخچه (شیت پروفایل گیاه یا مودال‌های اصلی)
   useEffect(() => {
     if (isAnyModalOpen && !hasModalHistoryRef.current) {
-      window.history.pushState({ greenhouseModal: true }, '');
+      window.history.pushState({ greenhouseModal: 'layer1' }, '');
       hasModalHistoryRef.current = true;
     } else if (!isAnyModalOpen && hasModalHistoryRef.current) {
       hasModalHistoryRef.current = false;
+      hasSubModalHistoryRef.current = false;
       if (window.history.state?.greenhouseModal) {
+        ignoreNextPopRef.current = true;
         window.history.back();
       }
     }
   }, [isAnyModalOpen]);
 
+  // لایه دوم تاریخچه (وقتی مودال ویرایش، کارت QR یا تایید روی پروفایل گیاه باز می‌شود)
+  useEffect(() => {
+    if (isSubModalOpen && !hasSubModalHistoryRef.current) {
+      window.history.pushState({ greenhouseModal: 'layer2' }, '');
+      hasSubModalHistoryRef.current = true;
+    } else if (!isSubModalOpen && hasSubModalHistoryRef.current) {
+      hasSubModalHistoryRef.current = false;
+      if (window.history.state?.greenhouseModal === 'layer2') {
+        ignoreNextPopRef.current = true;
+        window.history.back();
+      }
+    }
+  }, [isSubModalOpen]);
+
   useEffect(() => {
     const handlePopState = () => {
-      const m = modalStateRef.current;
-      // اگر پنجره فرعی روی شیت گیاه باز است، فقط همان پنجره فرعی را ببند و شیت گیاه را نگه دار
-      if (m.confirmState) {
-        setConfirmState(null);
-        window.history.pushState({ greenhouseModal: true }, '');
-        return;
-      }
-      if (m.guideTopic) {
-        setGuideTopic(null);
-        window.history.pushState({ greenhouseModal: true }, '');
-        return;
-      }
-      if (m.editingPlant) {
-        setEditingPlant(null);
-        window.history.pushState({ greenhouseModal: true }, '');
-        return;
-      }
-      if (m.qrPlant) {
-        setQrPlant(null);
-        window.history.pushState({ greenhouseModal: true }, '');
+      if (ignoreNextPopRef.current) {
+        ignoreNextPopRef.current = false;
         return;
       }
 
-      // بستن شیت اصلی گیاه یا مدال‌های صفحه اول با زدن دکمه Back گوشی
+      const m = modalStateRef.current;
+
+      // اگر مودال فرعی (ویرایش گلدان / کارت QR / تایید عملیات / راهنما) باز است،
+      // فقط همان مودال فرعی را ببند و شیت پروفایل گیاه را باز نگه دار!
+      if (m.confirmState) {
+        hasSubModalHistoryRef.current = false;
+        setConfirmState(null);
+        return;
+      }
+      if (m.guideTopic) {
+        hasSubModalHistoryRef.current = false;
+        setGuideTopic(null);
+        return;
+      }
+      if (m.editingPlant) {
+        hasSubModalHistoryRef.current = false;
+        setEditingPlant(null);
+        return;
+      }
+      if (m.qrPlant) {
+        hasSubModalHistoryRef.current = false;
+        setQrPlant(null);
+        return;
+      }
+
+      // اگر مودال فرعی باز نبود، شیت اصلی پروفایل گیاه یا مودال‌های صفحه اول را ببند
       hasModalHistoryRef.current = false;
       setSelectedPlantId(null);
       setSettingsOpen(false);
@@ -244,7 +275,7 @@ export default function App() {
 
   const isCloudHydratedRef = useRef<boolean>(false);
 
-  // همگام‌سازی خودکار نقش، فضا و نام اقدام‌کننده از روی لینک دعوت
+  // همگام‌سازی خودکار نقش، فضا و نام اقدام‌کننده از روی لینک دعوت یا لینک QR
   useEffect(() => {
     if (!urlMemberId) return;
     const foundMember = members.find((m) => m.id === urlMemberId);
@@ -300,7 +331,7 @@ export default function App() {
     });
   }, [spaces, plants, gardens, members, isVisitor]);
 
-  // تابع مرکزی اجرای عملیات روی گیاه (مشترک بین رابط کاربری اپ و دکمه‌های شیشه‌ای ربات تلگرام)
+  // تابع مرکزی اجرای عملیات روی گیاه (با واحد استاندارد میلی‌لیتر)
   const executePlantCareAction = (
     targetPlantId: string,
     actionType: CareActionType,
@@ -328,8 +359,8 @@ export default function App() {
 
         if (actionType === 'water') {
           logLabel = item.fertDue
-            ? `آبیاری + کود (${toPersianNum(item.doseMl)} سی‌سی)`
-            : `آبیاری (${toPersianNum(item.doseMl)} سی‌سی)`;
+            ? `آبیاری + کود (${toPersianNum(item.doseMl)} میلی‌لیتر)`
+            : `آبیاری (${toPersianNum(item.doseMl)} میلی‌لیتر)`;
           updated.daysSinceWater = 0;
           updated.lastWateredAt = Date.now();
           updated.waterCount += 1;
@@ -371,7 +402,7 @@ export default function App() {
             id: 'log_' + Date.now(),
             action: logLabel,
             by: fromTelegramBot ? `${actorName} (تلگرام)` : actorName,
-            time: `امروز • ساعت ${nowTimeStr}`,
+            time: `ساعت ${nowTimeStr}`,
             persianDate: todayPersian,
             note: noteText?.trim() || undefined
           },
@@ -403,7 +434,6 @@ export default function App() {
     );
   };
 
-  // نگهداری آخرین رفرنس استیت‌ها برای حلقه پایش سریع ربات تلگرام
   const latestStateRef = useRef({
     spaces,
     plants,
@@ -419,8 +449,7 @@ export default function App() {
     executePlantCareAction
   };
 
-  // ۳. حلقه فوق‌سریع ربات تلگرام (اجرای فوری در لحظه باز شدن + هر ۲.۵ ثانیه + هنگام بازگشت به صفحه)
-  // ۳. همگام‌سازی زنده و خودکار با دیتابیس ابری (دریافت آنی تغییرات ثبت‌شده در ربات تلگرام و سایر گوشی‌ها)
+  // ۳. همگام‌سازی زنده و خودکار با دیتابیس ابری
   useEffect(() => {
     if (isVisitor) return;
 
@@ -559,7 +588,6 @@ export default function App() {
     };
   });
 
-  // شمارنده‌های تفکیک‌شده
   const thirstyCount = evaluatedPlants.filter(({ metrics }) => metrics.needsWateringNow).length;
   const mistCount = evaluatedPlants.filter(({ metrics }) => metrics.needsMistingNow).length;
   const rotateCount = evaluatedPlants.filter(({ metrics }) => metrics.needsQuarterTurn).length;
@@ -577,12 +605,12 @@ export default function App() {
     ({ metrics }) => metrics.isWeekendShifted
   ).length;
 
-  // محاسبه مهندسی‌شده اقلیم، فصل خورشیدی، دمای محیط و شاخص رطوبت خاک
-  const persianMonthNum = Number(
-    new Intl.DateTimeFormat('fa-IR-u-ca-persian', { month: 'numeric' })
-      .format(new Date())
-      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
-  ) || 7;
+  const persianMonthNum =
+    Number(
+      new Intl.DateTimeFormat('fa-IR-u-ca-persian', { month: 'numeric' })
+        .format(new Date())
+        .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    ) || 7;
 
   const seasonInfo =
     persianMonthNum <= 3
@@ -598,10 +626,9 @@ export default function App() {
       ? spaceGardens.find((g) => g.id === activeGarden) || null
       : null;
 
-  const plantsForClimate =
-    activeGardenObj
-      ? evaluatedPlants.filter(({ plant }) => plant.garden === activeGardenObj.id)
-      : evaluatedPlants;
+  const plantsForClimate = activeGardenObj
+    ? evaluatedPlants.filter(({ plant }) => plant.garden === activeGardenObj.id)
+    : evaluatedPlants;
 
   const rawSoilMoistureAvg =
     plantsForClimate.length > 0
@@ -858,7 +885,9 @@ export default function App() {
       `🎉 تولد گلدان جدید در ${currentSpace.name}`,
       `قلمه ریشه‌دار «${motherPlant.name}» به گلدان مستقل (${newCode}) منتقل شد.`
     );
-    alert(`🌱 تبریک! قلمه ریشه‌دار به عنوان گلدان جدید (${newCode}) به «${currentSpace.name}» اضافه شد.`);
+    alert(
+      `🌱 تبریک! قلمه ریشه‌دار به عنوان گلدان جدید (${newCode}) به «${currentSpace.name}» اضافه شد.`
+    );
   };
 
   const handleRemoveCutting = (plantId: string, cuttingId: string) => {
@@ -1023,7 +1052,6 @@ export default function App() {
       </header>
 
       <main className="max-w-md mx-auto px-3 pt-3 space-y-3">
-        {/* نوار سوییچ بین گلخانه محل کار و گلخانه خانه */}
         {accessibleSpaces.length > 1 && (
           <section className="grid grid-cols-2 gap-1.5 bg-[#FDFBF7] p-1 rounded-2xl border border-[#E8E2D5] warm-shadow">
             {accessibleSpaces.map((sp) => {
@@ -1059,11 +1087,10 @@ export default function App() {
           </section>
         )}
 
-        {/* کارت‌های وضعیت Bento (کالیبره‌شده برای Galaxy A54 بدون حتی یک سه‌نقطه) */}
+        {/* کارت‌های وضعیت Bento */}
         <section className="grid grid-cols-2 gap-2 items-stretch">
           {/* کارت ۱: مرکز رسیدگی */}
           <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-2xl p-2 warm-shadow flex flex-col justify-between min-h-[110px]">
-            {/* ردیف ۱ هدر (ارتفاع ۲۲ پیکسل) */}
             <div className="h-[22px] flex items-center justify-between gap-1">
               <div className="flex items-center gap-1 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2E5A44] shrink-0" />
@@ -1072,8 +1099,8 @@ export default function App() {
                 </span>
               </div>
 
-              {!isVisitor && (
-                activeGarden === 'thirsty' ? (
+              {!isVisitor &&
+                (activeGarden === 'thirsty' ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -1097,8 +1124,7 @@ export default function App() {
                       ? `${toPersianNum(totalAttentionPlantsCount)} در نوبت`
                       : 'طراوت کامل'}
                   </span>
-                )
-              )}
+                ))}
             </div>
 
             {isVisitor ? (
@@ -1111,9 +1137,7 @@ export default function App() {
                 </p>
               </div>
             ) : (
-              /* ردیف ۲: سه کاشی عملیاتی (آبیاری، غبارپاشی، چرخش با پالت زیتونی-بوتانیکال) */
               <div className="grid grid-cols-3 gap-1 my-1.5 h-[46px]">
-                {/* ۱. آبیاری (آبی معدنی) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1141,7 +1165,6 @@ export default function App() {
                   </div>
                 </button>
 
-                {/* ۲. غبارپاشی (سبز مریم‌گلی) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1169,7 +1192,6 @@ export default function App() {
                   </div>
                 </button>
 
-                {/* ۳. چرخش (سبز زیتونی و خزه‌ای لوکس - بدون تناژ قرمز/نارنجی) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1199,7 +1221,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ردیف ۳ فوتر مرکز رسیدگی (بدون سه‌نقطه در تمام حالت‌ها) */}
             <div className="h-[23px] px-1.5 rounded-lg bg-[#F6F3EC] border border-[#E8E2D5]/90 flex items-center justify-between gap-1 text-[8px] font-bold whitespace-nowrap">
               {activeGarden === 'thirsty' ? (
                 <>
@@ -1243,9 +1264,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* کارت ۲: اقلیم گلخانه (کاملاً قرینه و بدون حتی یک سه‌نقطه) */}
+          {/* کارت ۲: اقلیم گلخانه */}
           <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-2xl p-2 warm-shadow flex flex-col justify-between min-h-[110px]">
-            {/* ردیف ۱ هدر (عنوان کامل اقلیم گلخانه + درصد رطوبت) */}
             <div className="h-[22px] flex items-center justify-between gap-1">
               <div className="flex items-center gap-1 shrink-0">
                 <span
@@ -1271,10 +1291,8 @@ export default function App() {
               </span>
             </div>
 
-            {/* ردیف ۲: دو کاشی متقارن (کاشی شوفاژ + کاشی فصل و دما به فارسی روان) */}
             {!isVisitor ? (
               <div className="grid grid-cols-2 gap-1.5 my-1.5 h-[46px]">
-                {/* کاشی ۱: شوفاژ */}
                 <button
                   type="button"
                   onClick={toggleSpaceRadiator}
@@ -1320,7 +1338,6 @@ export default function App() {
                   </div>
                 </button>
 
-                {/* کاشی ۲: فصل و دمای محیط با نگارش ۱۰۰٪ فارسی */}
                 <div className="h-full px-1 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] flex flex-col items-center justify-center">
                   <div className="flex items-center justify-center gap-0.5 text-[9.5px] font-extrabold text-[#1C2822] leading-none whitespace-nowrap">
                     <svg
@@ -1356,7 +1373,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ردیف ۳ فوتر اقلیم گلخانه (قرینه با کارت اول و بدون سه‌نقطه) */}
             <div
               className={`h-[23px] px-1.5 rounded-lg border flex items-center justify-between gap-1 text-[8px] font-bold whitespace-nowrap transition-colors ${
                 currentSpace.radiatorOn
@@ -1468,7 +1484,7 @@ export default function App() {
           })}
         </section>
 
-        {/* پنل تفکیک‌شده زنگوله بالای صفحه (با پالت یکدست بوتانیکال بدون رنگ قرمز تند) */}
+        {/* پنل تفکیک‌شده زنگوله بالای صفحه */}
         {activeGarden === 'thirsty' && !isVisitor && (
           <section className="bg-[#FDFBF7] border border-[#2E5A44]/30 rounded-2xl p-2.5 space-y-2 warm-shadow">
             <div className="flex items-center justify-between">
@@ -1643,7 +1659,7 @@ export default function App() {
                     <div className="mt-1.5 bg-[#F6F3EC]/80 border border-[#E8E2D5] rounded-xl px-2 py-1 space-y-1">
                       <div className="flex items-center justify-between gap-1 text-[10px] whitespace-nowrap">
                         <span className="persian-num font-bold text-[#2B7A9B]">
-                          💧 {toPersianNum(plant.doseMl)} سی‌سی
+                          💧 {toPersianNum(plant.doseMl)} میلی‌لیتر
                         </span>
                         <span className="text-[#E8E2D5]">|</span>
                         <span className="persian-num text-[#5A655E] font-semibold truncate">
@@ -1727,8 +1743,10 @@ export default function App() {
       <PlantProfileSheet
         plant={selectedPlant}
         gardenName={selectedPlant ? getGardenName(selectedPlant.garden) : ''}
+        gardens={spaceGardens}
         userRole={userRole}
         radiatorOn={currentSpace.radiatorOn}
+        activeMemberName={activeMemberFromUrl?.name || spaceMembers[0]?.name || 'سینا'}
         onClose={() => setSelectedPlantId(null)}
         onRequestAction={(plant, actionType) => {
           if (isVisitor) return;
@@ -1738,6 +1756,15 @@ export default function App() {
           setConfirmState({ plant, actionType });
         }}
         onSwitchGarden={handleSwitchGarden}
+        onChangeGarden={(plantId, newGardenId) => {
+          if (!isOwner) return;
+          setPlants((prev) =>
+            prev.map((p) => (p.id === plantId ? { ...p, garden: newGardenId } : p))
+          );
+        }}
+        onUpdatePlant={(updated) =>
+          setPlants((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+        }
         onEditPlant={(plant: PlantEntity) => setEditingPlant(plant)}
         onDeleteHistory={handleDeleteHistory}
         onReportHistoryError={(name) => {
@@ -1877,7 +1904,7 @@ export default function App() {
 
             <div className="persian-num text-[12.5px] text-[#1C2822] bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] leading-relaxed">
               {confirmState.actionType === 'water'
-                ? `لطفاً به میزان ${toPersianNum(confirmState.plant.doseMl)} سی‌سی (معادل ${confirmState.plant.doseCup}) آب ولرم بدون کلر پای خاک بریزید.`
+                ? `لطفاً به میزان ${toPersianNum(confirmState.plant.doseMl)} میلی‌لیتر (معادل ${confirmState.plant.doseCup}) آب ولرم بدون کلر پای خاک بریزید.`
                 : confirmState.actionType === 'mist'
                 ? 'با اسپری دستی از فاصله ۳۰ سانتی‌متری روی برگ‌ها آب بدون املاح بپاشید.'
                 : confirmState.actionType === 'rotate'
@@ -1970,7 +1997,7 @@ export default function App() {
               {guideTopic === 'misting'
                 ? 'پاشیدن آب بدون املاح به صورت ذرات پودری با اسپری دستی از فاصله ۳۰ سانتی‌متری در هوای اطراف برگ‌ها تا رطوبت تامین شود بدون اینکه خاک خیس گردد.'
                 : guideTopic === 'watering'
-                ? 'یک لیوان معمولی پر معادل ۲۵۰ سی‌سی است. آب ولرم هم‌دمای اتاق را به آرامی از لبه گلدان روی خاک پخش کنید.'
+                ? 'یک لیوان معمولی پر معادل ۲۵۰ میلی‌لیتر است. آب ولرم هم‌دمای اتاق را به آرامی از لبه گلدان روی خاک پخش کنید.'
                 : 'نوک انگشت را ۲ تا ۳ سانتی‌متر وارد خاک کنید؛ اگر خاک خشک بود زمان آبیاری است و اگر هنوز خنک و نم‌دار بود دکمه «خاک مرطوب» را بزنید.'}
             </p>
             <button

@@ -115,22 +115,25 @@ export type PotShapeType =
 
 export type PotColorType =
   | 'white'
+  | 'marble_white'
   | 'cream'
-  | 'terracotta'
+  | 'terrazzo_cream'
+  | 'sand'
+  | 'khaki'
+  | 'mustard_ochre'
   | 'terracotta_light'
+  | 'terracotta'
+  | 'copper_bronze'
+  | 'blush'
+  | 'wood_brown'
   | 'mint'
+  | 'olive'
   | 'forest_green'
+  | 'cobalt'
   | 'grey'
   | 'concrete'
   | 'charcoal'
-  | 'black'
-  | 'sand'
-  | 'khaki'
-  | 'cobalt'
-  | 'blush'
-  | 'olive'
-  | 'terrazzo_cream'
-  | 'wood_brown';
+  | 'black';
 
 export interface PlantEntity {
   id: string;
