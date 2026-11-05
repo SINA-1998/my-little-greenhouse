@@ -5,10 +5,12 @@ import {
   initialSpacesData,
   initialMembersData,
   formatPersianDate,
+  getDefaultMemberPermissions,
   type PlantEntity,
   type GardenEntity,
   type SpaceEntity,
-  type MemberEntity
+  type MemberEntity,
+  type MemberPermissions
 } from './data/initialPlants';
 import { CareCalculator } from './engine/careCalculator';
 import {
@@ -96,17 +98,34 @@ export default function App() {
     return 'office';
   });
 
-  const [userRole, setUserRole] = useState<AccessRole>(() => {
+const [userRole, setUserRole] = useState<AccessRole>(() => {
     if (urlMode === 'visitor') return 'visitor';
     if (activeMemberFromUrl) {
-      return activeMemberFromUrl.role === 'caretaker' ? 'caretaker' : 'owner';
+      if (activeMemberFromUrl.role === 'viewer') return 'visitor';
+      if (activeMemberFromUrl.role === 'caretaker') return 'caretaker';
+      return 'owner';
     }
     if (urlMode === 'guest') return 'caretaker';
     return 'owner';
   });
 
   const isSuperAdmin =
-    !activeMemberFromUrl || activeMemberFromUrl.role === 'super_admin';
+    userRole !== 'visitor' &&
+    (!activeMemberFromUrl || activeMemberFromUrl.role === 'super_admin');
+
+  // استخراج ۴ مجوز ریزدانه برای کاربر/عضو فعال فعلی
+  const activePermissions: MemberPermissions =
+    userRole === 'visitor'
+      ? getDefaultMemberPermissions('viewer')
+      : activeMemberFromUrl
+      ? activeMemberFromUrl.permissions ||
+        getDefaultMemberPermissions(activeMemberFromUrl.role)
+      : getDefaultMemberPermissions(userRole === 'owner' ? 'super_admin' : 'caretaker');
+
+  const canWaterAndMist = activePermissions.canWaterAndMist && userRole !== 'visitor';
+  const canEditPlants = activePermissions.canEditPlants && userRole !== 'visitor';
+  const canManageSpaces = activePermissions.canManageSpaces && userRole !== 'visitor';
+  const canDeletePlants = activePermissions.canDelete && userRole !== 'visitor';
 
   const accessibleSpaces = isSuperAdmin
     ? spaces
@@ -149,7 +168,7 @@ export default function App() {
   const [qrPlant, setQrPlant] = useState<PlantEntity | null>(null);
 
   const isOwner = userRole === 'owner';
-  const isVisitor = userRole === 'visitor';
+  const isVisitor = userRole === 'visitor' || (!canWaterAndMist && !canEditPlants && !canManageSpaces);
 
   const isAnyModalOpen = Boolean(
     selectedPlantId ||
@@ -275,14 +294,20 @@ export default function App() {
 
   const isCloudHydratedRef = useRef<boolean>(false);
 
-  // همگام‌سازی خودکار نقش، فضا و نام اقدام‌کننده از روی لینک دعوت یا لینک QR
+  // همگام‌سازی خودکار نقش، فضا و نام اقدام‌کننده از روی لینک دعوت
   useEffect(() => {
     if (!urlMemberId) return;
     const foundMember = members.find((m) => m.id === urlMemberId);
     if (foundMember) {
       setSelectedActor(foundMember.name);
       if (urlMode !== 'visitor') {
-        setUserRole(foundMember.role === 'caretaker' ? 'caretaker' : 'owner');
+        if (foundMember.role === 'viewer' || !foundMember.active) {
+          setUserRole('visitor');
+        } else if (foundMember.role === 'caretaker') {
+          setUserRole('caretaker');
+        } else {
+          setUserRole('owner');
+        }
       }
       if (!urlSpaceId && foundMember.assignedSpaces.length > 0) {
         setActiveSpaceId(foundMember.assignedSpaces[0]);
@@ -319,6 +344,7 @@ export default function App() {
   // ذخیره خودکار تغییرات در حافظه محلی و فضای ابری Supabase
   useEffect(() => {
     if (isVisitor) return;
+    lastLocalWriteTimeRef.current = Date.now();
     localStorage.setItem(PLANTS_STORAGE_KEY, JSON.stringify(plants));
     localStorage.setItem(SPACES_STORAGE_KEY, JSON.stringify(spaces));
     localStorage.setItem(GARDENS_STORAGE_KEY, JSON.stringify(gardens));
@@ -449,12 +475,17 @@ export default function App() {
     executePlantCareAction
   };
 
-  // ۳. همگام‌سازی زنده و خودکار با دیتابیس ابری
+  const lastLocalWriteTimeRef = useRef<number>(0);
+
+  // ۳. همگام‌سازی زنده و خودکار با دیتابیس ابری (دریافت آنی تغییرات ثبت‌شده توسط ورکر تلگرام در Supabase)
   useEffect(() => {
     if (isVisitor) return;
 
     const syncFromCloud = () => {
       if (!isCloudHydratedRef.current) return;
+      // اگر در ۸ ثانیه گذشته تغییری روی دستگاه ثبت شده، منتظر بمان تا کلود آپدیت شود
+      if (Date.now() - lastLocalWriteTimeRef.current < 8000) return;
+
       fetchGreenhouseFromCloud().then((remote) => {
         if (!remote) return;
 
@@ -714,6 +745,10 @@ export default function App() {
   });
 
   const toggleSpaceRadiator = () => {
+    if (!canManageSpaces) {
+      alert('🔒 تغییر وضعیت شوفاژ نیازمند مجوز «شوفاژ و باغچه‌ها» است.');
+      return;
+    }
     setSpaces((prev) =>
       prev.map((sp) =>
         sp.id === currentSpace.id ? { ...sp, radiatorOn: !sp.radiatorOn } : sp
@@ -722,7 +757,7 @@ export default function App() {
   };
 
   const handleConfirmExecute = () => {
-    if (!confirmState || isVisitor) return;
+    if (!confirmState || !canWaterAndMist) return;
     const { plant, actionType } = confirmState;
     executePlantCareAction(plant.id, actionType, selectedActor, actionNote, false);
     setConfirmState(null);
@@ -741,7 +776,7 @@ export default function App() {
   };
 
   const handleSwitchGarden = (plantId: string) => {
-    if (!isOwner || spaceGardens.length < 2) return;
+    if (!canManageSpaces || spaceGardens.length < 2) return;
     setPlants((prev) =>
       prev.map((p) => {
         if (p.id !== plantId) return p;
@@ -753,7 +788,7 @@ export default function App() {
   };
 
   const handleHardDeletePlant = (plantId: string, plantName: string) => {
-    if (!isOwner) return;
+    if (!canDeletePlants) return;
     const confirmed = window.confirm(
       `⚠️ آیا از حذف دائمی و کامل «${plantName}» از گلخانه مطمئن هستید؟`
     );
@@ -766,7 +801,7 @@ export default function App() {
   };
 
   const handleDeleteGarden = (gardenId: string) => {
-    if (!isOwner) return;
+    if (!canManageSpaces) return;
     if (spaceGardens.length <= 1) {
       alert('⚠️ هر گلخانه باید حداقل یک باغچه فعال داشته باشد.');
       return;
@@ -789,6 +824,23 @@ export default function App() {
       prev.map((p) => (p.garden === gardenId ? { ...p, garden: fallbackGarden.id } : p))
     );
     setGardens((prev) => prev.filter((g) => g.id !== gardenId));
+    // انتقال خودکار دسترسی اعضایی که به این باغچه محدود شده بودند به باغچه جایگزین
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.assignedGardens && m.assignedGardens.includes(gardenId)
+          ? {
+              ...m,
+              assignedGardens: Array.from(
+                new Set(
+                  m.assignedGardens.map((gid) =>
+                    gid === gardenId ? fallbackGarden.id : gid
+                  )
+                )
+              )
+            }
+          : m
+      )
+    );
     if (activeGarden === gardenId) setActiveGarden('all');
   };
 
@@ -901,7 +953,7 @@ export default function App() {
   };
 
   const handleArchivePlant = (plant: PlantEntity) => {
-    if (!isOwner) return;
+    if (!canDeletePlants) return;
     const reason = window.prompt(
       `علت انتقال «${plant.name}» به تالار یادبود را بنویسید:`,
       'انتقال یا تغییر وضعیت'
@@ -924,7 +976,7 @@ export default function App() {
   };
 
   const handleRestorePlant = (plantId: string) => {
-    if (!isOwner) return;
+    if (!canDeletePlants) return;
     setPlants((prev) =>
       prev.map((p) => (p.id === plantId ? { ...p, archived: false } : p))
     );
@@ -997,7 +1049,7 @@ export default function App() {
               </button>
             )}
 
-            {isOwner && (
+            {canEditPlants && (
               <button
                 onClick={() => setAddPlantOpen(true)}
                 title="افزودن گیاه جدید به گلخانه"
@@ -1038,7 +1090,7 @@ export default function App() {
               </button>
             )}
 
-            {isOwner && (
+            {(isSuperAdmin || canManageSpaces) && (
               <button
                 onClick={() => setSettingsOpen(true)}
                 title="مرکز مدیریت گلخانه‌ها و اعضا"
@@ -1745,11 +1797,12 @@ export default function App() {
         gardenName={selectedPlant ? getGardenName(selectedPlant.garden) : ''}
         gardens={spaceGardens}
         userRole={userRole}
+        permissions={activePermissions}
         radiatorOn={currentSpace.radiatorOn}
         activeMemberName={activeMemberFromUrl?.name || spaceMembers[0]?.name || 'سینا'}
         onClose={() => setSelectedPlantId(null)}
         onRequestAction={(plant, actionType) => {
-          if (isVisitor) return;
+          if (!canWaterAndMist) return;
           setSelectedActor(
             activeMemberFromUrl?.name || spaceMembers[0]?.name || 'سینا'
           );
@@ -1757,7 +1810,7 @@ export default function App() {
         }}
         onSwitchGarden={handleSwitchGarden}
         onChangeGarden={(plantId, newGardenId) => {
-          if (!isOwner) return;
+          if (!canManageSpaces) return;
           setPlants((prev) =>
             prev.map((p) => (p.id === plantId ? { ...p, garden: newGardenId } : p))
           );
@@ -1838,11 +1891,15 @@ export default function App() {
           setMembers(backup.members);
         }}
         onResetGreenhouse={(mode) => {
+          lastLocalWriteTimeRef.current = Date.now();
           localStorage.setItem('sina_greenhouse_zero_state_v7', 'true');
           setUndoSnapshot(JSON.parse(JSON.stringify(plants)));
+
           if (mode === 'plants_only') {
             setPlants([]);
-            setUndoMessage('تمام گلدان‌های پیش‌فرض پاک شدند؛ اکنون از کد #۰۱ ثبت کنید.');
+            localStorage.setItem(PLANTS_STORAGE_KEY, JSON.stringify([]));
+            pushGreenhouseToCloud({ spaces, plants: [], gardens, members });
+            setUndoMessage('تمام گلدان‌ها پاک شدند؛ اکنون از پلاک #۰۱ ثبت کنید.');
           } else {
             const freshSpace: SpaceEntity = {
               id: 'office',
@@ -1856,12 +1913,39 @@ export default function App() {
               name: 'باغچه اصلی',
               lightLevel: 'high'
             };
+            // حفظ فقط حساب مالک ارشد و حذف تمام اعضای آزمایشی اضافه‌شده
+            const ownerTemplate =
+              members.find((m) => m.id === 'm_owner_sina' || m.role === 'super_admin') ||
+              initialMembersData[0];
+            const freshOwner: MemberEntity = {
+              ...ownerTemplate,
+              assignedSpaces: ['office'],
+              assignedGardens: []
+            };
+
             setSpaces([freshSpace]);
             setGardens([freshGarden]);
             setPlants([]);
+            setMembers([freshOwner]);
+            setPreviewMemberId(null);
+            setUserRole('owner');
             setActiveSpaceId('office');
             setActiveGarden('all');
-            setUndoMessage('گلخانه به حالت ۱۰۰٪ خام بازنشانی شد.');
+            setSearchQuery('');
+
+            localStorage.setItem(SPACES_STORAGE_KEY, JSON.stringify([freshSpace]));
+            localStorage.setItem(GARDENS_STORAGE_KEY, JSON.stringify([freshGarden]));
+            localStorage.setItem(PLANTS_STORAGE_KEY, JSON.stringify([]));
+            localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify([freshOwner]));
+
+            pushGreenhouseToCloud({
+              spaces: [freshSpace],
+              gardens: [freshGarden],
+              plants: [],
+              members: [freshOwner]
+            });
+
+            setUndoMessage('کل سیستم (فضاها، باغچه‌ها، گلدان‌ها و اعضا) به حالت ۱۰۰٪ خام بازنشانی شد.');
           }
           setSettingsOpen(false);
         }}

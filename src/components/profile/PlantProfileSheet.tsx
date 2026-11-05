@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   type PlantEntity,
   type GardenEntity,
+  type MemberPermissions,
   formatPersianDate
 } from '../../data/initialPlants';
 import { CareCalculator } from '../../engine/careCalculator';
@@ -146,6 +147,7 @@ export interface PlantProfileSheetProps {
   gardenName?: string;
   gardens?: GardenEntity[];
   userRole?: AccessRole;
+  permissions?: MemberPermissions;
   radiatorOn?: boolean;
   isOwner?: boolean;
   canCare?: boolean;
@@ -260,16 +262,33 @@ export const PlantProfileSheet: React.FC<PlantProfileSheetProps> = (props) => {
   if (!plant) return null;
 
   // منطق دقیق سطوح دسترسی (RBAC)
+// منطق دقیق سطوح دسترسی (RBAC) + پشتیبانی از ۴ مجوز ریزدانه هر عضو
   const effectiveIsOwner =
     props.isOwner !== undefined
       ? props.isOwner
       : userRole === 'owner' || userRole === 'admin';
-  const effectiveCanEdit =
-    effectiveIsOwner || userRole === 'manager' || userRole === 'caretaker';
+
   const effectiveCanCare =
-    props.canCare !== undefined
+    props.permissions !== undefined
+      ? props.permissions.canWaterAndMist
+      : props.canCare !== undefined
       ? props.canCare
       : userRole !== 'visitor';
+
+  const effectiveCanEdit =
+    props.permissions !== undefined
+      ? props.permissions.canEditPlants
+      : effectiveIsOwner || userRole === 'manager' || userRole === 'caretaker';
+
+  const effectiveCanManageSpaces =
+    props.permissions !== undefined
+      ? props.permissions.canManageSpaces
+      : effectiveCanEdit;
+
+  const effectiveCanDelete =
+    props.permissions !== undefined
+      ? props.permissions.canDelete
+      : effectiveIsOwner;
 
   const roleDisplayName =
     activeMemberName ||
@@ -647,7 +666,7 @@ export const PlantProfileSheet: React.FC<PlantProfileSheetProps> = (props) => {
           </div>
 
           {/* پنل تعاملی و شفاف تغییر باغچه */}
-          {showGardenPanel && effectiveCanEdit && (
+          {showGardenPanel && effectiveCanManageSpaces && (
             <div className="bg-[#F6F3EC] p-2.5 rounded-xl border border-[#2E5A44]/30 space-y-2">
               <div className="flex items-center justify-between text-[10px]">
                 <span className="font-bold text-[#1C2822]">
@@ -1071,7 +1090,7 @@ export const PlantProfileSheet: React.FC<PlantProfileSheetProps> = (props) => {
                 )}
               </div>
 
-              {effectiveIsOwner && (
+              {effectiveCanDelete && (
                 <div className="pt-2 border-t border-[#E8E2D5] space-y-2">
                   {!showArchiveConfirm ? (
                     <div className="flex items-center gap-2">

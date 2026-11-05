@@ -55,9 +55,9 @@ export interface TelegramSendResult {
 
 const CONFIG_STORAGE_KEY = 'sina_greenhouse_cloud_config_v1';
 const LAST_UPDATE_ID_KEY = 'sina_greenhouse_tg_offset_v4';
+const KB_CLEARED_PREFIX = 'sina_tg_kb_cleared_v9_';
 const ROOM_ID = 'sina_office_greenhouse';
 
-// توابع کمکی ایمن برای انتخاب اولین رشته پر و ترکیب شرط‌ها
 const pickStr = (...values: Array<string | undefined | null>): string => {
   for (const val of values) {
     if (typeof val === 'string' && val.trim().length > 0) {
@@ -70,19 +70,11 @@ const pickStr = (...values: Array<string | undefined | null>): string => {
 const toPersianNum = (num: number | string): string =>
   String(num).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 
-// کیبورد جامع، مینیمال و فارسی پایین صفحه تلگرام (۸ کلید مدیریتی)
+// حذف کامل کیبورد ۴ ردیفه قدیمی برای آزادسازی فضای صفحه موبایل
 export const TELEGRAM_MAIN_REPLY_KEYBOARD = {
-  keyboard: [
-    [{ text: '📊 وضعیت گلخانه' }, { text: '💧 آبیاری امروز' }],
-    [{ text: '💦 غبارپاشی' }, { text: '🔄 چرخش گلدان' }],
-    [{ text: '🪴 شناسنامه گیاهان' }, { text: '📅 آخرین فعالیت‌ها' }],
-    [{ text: '🌡️ وضعیت شوفاژ' }, { text: '👤 دسترسی من' }]
-  ],
-  resize_keyboard: true,
-  is_persistent: true
+  remove_keyboard: true
 };
 
-// تابع کپی ضدخطا برای تمام مرورگرهای موبایل و دسکتاپ
 export const copyTextSafe = async (text: string): Promise<boolean> => {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -152,8 +144,7 @@ let supabaseInstance: SupabaseClient | null = null;
 
 export const getSupabaseClient = (): SupabaseClient | null => {
   const cfg = getCloudConfig();
-  if (!cfg.supabaseUrl) return null;
-  if (!cfg.supabaseAnonKey) return null;
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return null;
   if (!supabaseInstance) {
     supabaseInstance = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
   }
@@ -170,8 +161,7 @@ export const fetchGreenhouseFromCloud = async (): Promise<GreenhouseCloudPayload
     .eq('room_id', ROOM_ID)
     .single();
 
-  if (error) return null;
-  if (!data?.payload) return null;
+  if (error || !data?.payload) return null;
 
   if (data.payload.botSettings) {
     const currentCfg = getCloudConfig();
@@ -224,35 +214,32 @@ export const fetchTelegramBotUsername = async (
   const cfg = getCloudConfig();
   const fallbackUsername = pickStr(cfg.telegramBotUsername);
   const token = pickStr(customToken, cfg.telegramBotToken);
-  if (!token) {
-    return fallbackUsername ? fallbackUsername : null;
-  }
+  if (!token) return fallbackUsername || null;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3500);
 
   try {
-    const res = await fetch(`https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/getMe`, {
-      signal: controller.signal
-    });
+    const res = await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/getMe`,
+      { signal: controller.signal }
+    );
     clearTimeout(timeoutId);
-    if (!res.ok) {
-      return fallbackUsername ? fallbackUsername : null;
-    }
+    if (!res.ok) return fallbackUsername || null;
     const data = await res.json();
     const username: string = pickStr(data?.result?.username);
     if (username) {
       saveCloudConfig({ ...cfg, telegramBotUsername: username });
       return username;
     }
-    return fallbackUsername ? fallbackUsername : null;
+    return fallbackUsername || null;
   } catch {
     clearTimeout(timeoutId);
-    return fallbackUsername ? fallbackUsername : null;
+    return fallbackUsername || null;
   }
 };
 
-// ثبت منوی رسمی دستورات در تلگرام
+// ثبت خودکار منوی دستورات بومی تلگرام (دکمه Menu کنار باکس تایپ که هیچ فضایی از صفحه نمی‌گیرد)
 export const setupTelegramBotCommands = async (customToken?: string): Promise<boolean> => {
   const cfg = getCloudConfig();
   const token = pickStr(customToken, cfg.telegramBotToken);
@@ -260,27 +247,109 @@ export const setupTelegramBotCommands = async (customToken?: string): Promise<bo
 
   try {
     const commands = [
-      { command: 'status', description: 'وضعیت گلخانه' },
-      { command: 'thirsty', description: 'آبیاری امروز' },
-      { command: 'mist', description: 'نوبت غبارپاشی' },
-      { command: 'rotate', description: 'نوبت چرخش گلدان' },
-      { command: 'plants', description: 'شناسنامه و مدیریت گیاهان' },
-      { command: 'history', description: 'گزارش آخرین فعالیت‌ها' },
-      { command: 'radiator', description: 'وضعیت شوفاژ' }
+      { command: 'status', description: '🌿 داشبورد زنده وضعیت گلخانه' },
+      { command: 'plants', description: '🪴 فهرست و شناسنامه گیاهان' },
+      { command: 'thirsty', description: '💧 گلدان‌های نیازمند آبیاری' },
+      { command: 'mist', description: '💨 نوبت غبارپاشی برگ‌ها' },
+      { command: 'rotate', description: '🔄 نوبت چرخش ۹۰ درجه' },
+      { command: 'history', description: '🕒 گزارش آخرین فعالیت‌ها' },
+      { command: 'radiator', description: '🔥 وضعیت گرمایش شوفاژ' }
     ];
 
-    const res = await fetch(`https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/setMyCommands`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commands })
-    });
+    const res = await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/setMyCommands`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commands })
+      }
+    );
+
+    // تنظیم دکمه Menu کنار کادر پیام روی حالت Commands
+    await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/setChatMenuButton`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menu_button: { type: 'commands' } })
+      }
+    ).catch(() => {});
+
     return res.ok;
   } catch {
     return false;
   }
 };
 
-// کش مشترک کاربران ربات برای جلوگیری از تداخل Offset با حلقه اصلی
+// پاکسازی خودکار کیبورد بزرگ ۴ ردیفه قدیمی از پایین صفحه موبایل کاربر (فقط ۱ بار به ازای هر چت)
+const ensureLegacyReplyKeyboardCleared = async (
+  token: string,
+  chatId: string,
+  forceClear: boolean = false
+): Promise<void> => {
+  const flagKey = `${KB_CLEARED_PREFIX}${chatId}`;
+  if (!forceClear && localStorage.getItem(flagKey) === 'done') return;
+
+  try {
+    const res = await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: '🌿 <b>محیط ربات به نسخه مینیمال ارتقا یافت</b>\nکیبورد بزرگ پایین صفحه جمع شد؛ از دکمه <b>Menu</b> کنار کادر پیام یا دکمه‌های زیر هر کارت استفاده کنید.',
+          parse_mode: 'HTML',
+          reply_markup: { remove_keyboard: true }
+        })
+      }
+    );
+    if (res.ok) {
+      localStorage.setItem(flagKey, 'done');
+    }
+  } catch {
+    // نادیده گرفتن خطای شبکه
+  }
+};
+
+// ویرایش درجای کارت پیام در تلگرام (جلوگیری از ارسال پیام‌های تکراری و شلوغ شدن صفحه چت)
+const editTelegramMessageInPlace = async (params: {
+  token: string;
+  chatId: string;
+  messageId: number;
+  title: string;
+  bodyHtml: string;
+  inlineKeyboard?: TelegramInlineButton[][];
+}): Promise<boolean> => {
+  const { token, chatId, messageId, title, bodyHtml, inlineKeyboard } = params;
+  const htmlMessage = title ? `<b>${title}</b>\n\n${bodyHtml}` : bodyHtml;
+
+  try {
+    const payload: Record<string, unknown> = {
+      chat_id: chatId,
+      message_id: messageId,
+      text: htmlMessage,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true
+    };
+    if (inlineKeyboard && inlineKeyboard.length > 0) {
+      payload.reply_markup = { inline_keyboard: inlineKeyboard };
+    }
+
+    const res = await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/editMessageText`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
+
 const cachedSubscribersMap = new Map<string, TelegramBotSubscriber>();
 
 export const fetchRecentBotSubscribers = async (
@@ -294,19 +363,16 @@ export const fetchRecentBotSubscribers = async (
   const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const res = await fetch(`https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/getUpdates?limit=30`, {
-      signal: controller.signal
-    });
+    const res = await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/getUpdates?limit=30`,
+      { signal: controller.signal }
+    );
     clearTimeout(timeoutId);
     if (!res.ok) return Array.from(cachedSubscribersMap.values());
     const data = await res.json();
     if (data?.ok && Array.isArray(data.result)) {
       for (const item of data.result) {
-        const msg = item.message
-          ? item.message
-          : item.edited_message
-          ? item.edited_message
-          : item.my_chat_member;
+        const msg = item.message || item.edited_message || item.my_chat_member;
         const chat = msg?.chat;
         const text: string = pickStr(msg?.text);
         if (chat && chat.id) {
@@ -318,7 +384,7 @@ export const fetchRecentBotSubscribers = async (
           const prev = cachedSubscribersMap.get(cid);
           const fullName = [chat.first_name, chat.last_name].filter(Boolean).join(' ');
           const finalName = pickStr(fullName, chat.title, 'کاربر تلگرام');
-          const finalInvite = invitedMemberId ? invitedMemberId : prev?.invitedMemberId;
+          const finalInvite = invitedMemberId || prev?.invitedMemberId;
 
           cachedSubscribersMap.set(cid, {
             chatId: cid,
@@ -352,15 +418,10 @@ const resolveTargetChatIds = (
 
     const isSuper = m.role === 'super_admin';
     const isAssigned = m.assignedSpaces.includes(spaceId);
-    const hasSpaceAccess = isSuper ? true : isAssigned;
-    if (!hasSpaceAccess) return;
+    if (!isSuper && !isAssigned) return;
 
-    if (mode === 'alerts' && m.notifyAlerts) {
-      targets.add(chatId);
-    }
-    if (mode === 'actions' && m.notifyActions) {
-      targets.add(chatId);
-    }
+    if (mode === 'alerts' && m.notifyAlerts) targets.add(chatId);
+    if (mode === 'actions' && m.notifyActions) targets.add(chatId);
   });
 
   const fallbackChatId = pickStr(cfg.telegramChatId);
@@ -371,13 +432,13 @@ const resolveTargetChatIds = (
   return Array.from(targets);
 };
 
-// ارسال پیام به تلگرام با قالب مینیمال، تمیز و بدون تگ‌های شلوغ
+// ارسال پیام کارت مینیمال به تلگرام (همراه با جمع کردن خودکار کیبورد بزرگ قدیمی)
 export const sendTelegramToTargets = async (
   title: string,
   bodyHtml: string,
   targetChatIds?: string[],
   inlineKeyboard?: TelegramInlineButton[][],
-  useMainReplyKeyboard: boolean = false
+  clearReplyKeyboard: boolean = false
 ): Promise<TelegramSendResult> => {
   const cfg = getCloudConfig();
 
@@ -413,31 +474,33 @@ export const sendTelegramToTargets = async (
 
   const htmlMessage = title ? `<b>${title}</b>\n\n${bodyHtml}` : bodyHtml;
 
-  let replyMarkup: Record<string, unknown> | undefined = undefined;
-  if (inlineKeyboard && inlineKeyboard.length > 0) {
-    replyMarkup = { inline_keyboard: inlineKeyboard };
-  } else if (useMainReplyKeyboard) {
-    replyMarkup = TELEGRAM_MAIN_REPLY_KEYBOARD;
-  }
-
   let sentCount = 0;
   for (const chatId of chatIds) {
     try {
+      // اطمینان از جمع شدن کیبورد ۴ ردیفه قدیمی در اولین ارتباط
+      await ensureLegacyReplyKeyboardCleared(token, chatId, clearReplyKeyboard);
+
       const payload: Record<string, unknown> = {
         chat_id: chatId,
         text: htmlMessage,
         parse_mode: 'HTML',
         disable_web_page_preview: true
       };
-      if (replyMarkup) {
-        payload.reply_markup = replyMarkup;
+
+      if (inlineKeyboard && inlineKeyboard.length > 0) {
+        payload.reply_markup = { inline_keyboard: inlineKeyboard };
+      } else if (clearReplyKeyboard) {
+        payload.reply_markup = { remove_keyboard: true };
       }
 
-      const res = await fetch(`https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetch(
+        `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }
+      );
       if (res.ok) sentCount++;
     } catch {
       // ادامه به گیرنده بعدی
@@ -459,7 +522,9 @@ export const sendInstantNotification = async (
   return res.ok;
 };
 
-// ۱. گزارش مینیمال و تمیز ثبت عملیات (بدون فونت ایتالیک و بدون شلوغی)
+// ============================================================================
+// ۱. گزارش مینیمال و متقارن ثبت عملیات مراقبتی (با واحد میلی‌لیتر)
+// ============================================================================
 export const sendCareActionTelegramReport = async (params: {
   space: SpaceEntity;
   plant: PlantEntity;
@@ -477,63 +542,56 @@ export const sendCareActionTelegramReport = async (params: {
     minute: '2-digit'
   });
 
-  let actionTitle = '';
-  let doseLine = '';
-  let nextLine = '';
-  const repotMonths = plant.repotCycleMonths ? plant.repotCycleMonths : 16;
+  let badge = '💧 ثبت آبیاری';
+  let detailLine = '';
+  let scheduleLine = '';
 
   if (actionType === 'water') {
-    actionTitle = plant.fertDue ? '💧 ثبت آبیاری و کوددهی' : '💧 ثبت آبیاری';
-    doseLine = `پیمانه: <code>${toPersianNum(plant.doseMl)} سی‌سی</code> (${plant.doseCup})`;
-    nextLine = `نوبت بعدی: ${toPersianNum(metrics.effectiveCycleDays)} روز دیگر`;
+    badge = plant.fertDue ? '💧 ثبت آبیاری و کوددهی' : '💧 ثبت آبیاری گلدان';
+    detailLine = `پیمانه: <b>${toPersianNum(plant.doseMl)} میلی‌لیتر</b> (${plant.doseCup})`;
+    scheduleLine = `موعد بعدی: ${toPersianNum(metrics.effectiveCycleDays)} روز دیگر`;
   } else if (actionType === 'mist') {
-    actionTitle = '💦 ثبت غبارپاشی برگ‌ها';
-    doseLine = 'رطوبت‌رسانی برگ‌ها انجام شد';
-    nextLine = `موعد آبیاری خاک: ${metrics.nextWateringText}`;
+    badge = '💨 ثبت غبارپاشی برگ';
+    detailLine = 'رطوبت‌رسانی برگ‌ها انجام شد';
+    scheduleLine = `آبیاری خاک: ${metrics.nextWateringText}`;
   } else if (actionType === 'rotate') {
-    actionTitle = '🔄 ثبت چرخش ۹۰ درجه';
-    doseLine = 'تنظیم تقارن نور گلدان';
-    nextLine = 'چرخش بعدی: ۲ نوبت آبیاری دیگر';
+    badge = '🔄 ثبت چرخش ۹۰ درجه';
+    detailLine = 'تقارن نوری تاج و ساقه تنظیم شد';
+    scheduleLine = 'چرخش بعدی: ۲ نوبت آبیاری دیگر';
   } else if (actionType === 'prune') {
-    actionTitle = '✂️ ثبت هرس و فرم‌دهی';
-    doseLine = 'اصلاح شاخ و برگ انجام شد';
-    nextLine = `وضعیت رطوبت خاک: ${toPersianNum(metrics.moisturePercent)}٪`;
+    badge = '✂️ ثبت هرس و فرم‌دهی';
+    detailLine = 'برگ‌چینی و سرزنی تخصصی انجام شد';
+    scheduleLine = `رطوبت فعلی بستر: ${toPersianNum(metrics.moisturePercent)}٪`;
   } else if (actionType === 'repot') {
-    actionTitle = '🪴 ثبت تعویض خاک';
-    doseLine = 'بستر خاک و زهکشی نوسازی شد';
-    nextLine = `تعویض بعدی: ${toPersianNum(repotMonths)} ماه دیگر`;
-  } else if (actionType === 'clean_leaves') {
-    actionTitle = '✨ ثبت غبارروبی برگ‌ها';
-    doseLine = 'پاکسازی منافذ تنفسی برگ انجام شد';
-    nextLine = 'غبارروبی بعدی: ۱ ماه دیگر';
+    badge = '🪴 ثبت تعویض بستر خاک';
+    detailLine = `حجم بستر: ${toPersianNum(plant.potVolumeLiters || 2)} لیتر`;
+    scheduleLine = `تعویض بعدی: ${toPersianNum(plant.repotCycleMonths || 18)} ماه دیگر`;
   } else {
-    actionTitle = '⏳ تعویق آبیاری (خاک مرطوب)';
-    doseLine = 'خاک بررسی شد و هنوز نم‌دار است';
-    nextLine = 'بررسی مجدد: ۲ روز دیگر';
+    badge = '🛡️ تعویق آبیاری (خاک مرطوب)';
+    detailLine = 'بستر هنوز مرطوب است و نیاز به آب ندارد';
+    scheduleLine = 'بررسی مجدد: ۲ روز دیگر';
   }
 
-  const actorLabel = sourceLabel ? `${actor} • ${sourceLabel}` : actor;
+  const actorTag = sourceLabel ? `${actor} (${sourceLabel})` : actor;
 
-  const lines: string[] = [
-    `🪴 <b>${plant.name}</b>  <code>${plant.code}</code>`,
-    `${space.icon} ${space.name} • ${gardenName}`,
-    ''
+  const bodyLines: string[] = [
+    `🪴 <b>${plant.name}</b> • پلاک <code>${plant.code}</code>`,
+    `📍 ${space.icon} ${space.name} (${gardenName})`,
+    `<blockquote>• ${detailLine}\n• ${scheduleLine}${
+      note ? `\n• یادداشت: ${note}` : ''
+    }</blockquote>`,
+    `👤 ثبت‌کننده: <b>${actorTag}</b> • ساعت ${toPersianNum(nowTime)}`
   ];
 
-  if (doseLine) lines.push(`• ${doseLine}`);
-  if (nextLine) lines.push(`• ${nextLine}`);
-  if (note) lines.push(`• یادداشت: ${note}`);
-  lines.push('');
-  lines.push(`👤 ${actorLabel} • ساعت ${nowTime}`);
-
+  // ۲ دکمه متقارن و کوتاه در پایین کارت گزارش
   const inlineButtons: TelegramInlineButton[][] = [
     [
       {
-        text: `🪴 شناسنامه ${plant.name}`,
+        text: `📖 شناسنامه ${plant.code}`,
         callback_data: `info:${plant.id}`
       },
       {
-        text: `📊 وضعیت ${space.name}`,
+        text: `📊 داشبورد گلخانه`,
         callback_data: `status:${space.id}`
       }
     ]
@@ -541,14 +599,184 @@ export const sendCareActionTelegramReport = async (params: {
 
   const targetChatIds = resolveTargetChatIds(space.id, members, 'actions');
   return await sendTelegramToTargets(
-    actionTitle,
-    lines.join('\n'),
+    badge,
+    bodyLines.join('\n'),
     targetChatIds,
     inlineButtons
   );
 };
 
-// ۲. گزارش مینیمال و ساختاریافته وضعیت گلخانه (همراه با دکمه‌های شیشه‌ای مستقیم)
+// ============================================================================
+// ۲. سازنده داشبورد وضعیت گلخانه (با بلوک تاشوی expandable و دکمه‌های ۲ ستونه متقارن)
+// ============================================================================
+const buildSpaceStatusCardContent = (params: {
+  space: SpaceEntity;
+  plants: PlantEntity[];
+  gardens: GardenEntity[];
+  level: 'morning' | 'noon_escalation';
+}): {
+  title: string;
+  bodyHtml: string;
+  inlineKeyboard: TelegramInlineButton[][];
+  hasDueItems: boolean;
+} => {
+  const { space, plants, gardens, level } = params;
+  const spacePlants = plants.filter(
+    (p) => !p.archived && pickStr(p.spaceId, 'office') === space.id
+  );
+  const persianToday = formatPersianDate(0);
+
+  const thirstyLines: string[] = [];
+  const mistLines: string[] = [];
+  const rotateLines: string[] = [];
+  const healthyLines: string[] = [];
+  const inlineKeyboard: TelegramInlineButton[][] = [];
+
+  spacePlants.forEach((p) => {
+    const gObj = gardens.find((g) => g.id === p.garden);
+    const m = CareCalculator.evaluatePlant(p, space.radiatorOn, new Date(), gObj);
+
+    if (m.needsWateringNow) {
+      thirstyLines.push(
+        `• <b>${p.name}</b> (<code>${p.code}</code>) ← <b>${toPersianNum(p.doseMl)} میلی‌لیتر</b>`
+      );
+      if (inlineKeyboard.length < 6) {
+        // چیدمان متقارن ۲ ستونه با برچسب‌های کوتاه و بدون برش
+        inlineKeyboard.push([
+          {
+            text: `💧 آبیاری ${p.code} (${toPersianNum(p.doseMl)}ml)`,
+            callback_data: `act:w:${p.id}`
+          },
+          {
+            text: `🛡️ خاک مرطوب ${p.code}`,
+            callback_data: `act:s:${p.id}`
+          }
+        ]);
+      }
+    } else {
+      healthyLines.push(
+        `• ${p.name} (${p.code}): ${toPersianNum(m.moisturePercent)}٪ رطوبت (${toPersianNum(
+          m.daysRemaining
+        )} روز مانده)`
+      );
+    }
+
+    if (m.needsMistingNow) {
+      mistLines.push(`• <b>${p.name}</b> (<code>${p.code}</code>)`);
+      if (inlineKeyboard.length < 6 && !m.needsWateringNow) {
+        inlineKeyboard.push([
+          {
+            text: `💨 غبارپاشی ${p.code}`,
+            callback_data: `act:m:${p.id}`
+          },
+          {
+            text: `📖 شناسنامه ${p.code}`,
+            callback_data: `info:${p.id}`
+          }
+        ]);
+      }
+    }
+
+    if (m.needsQuarterTurn) {
+      rotateLines.push(`• <b>${p.name}</b> (<code>${p.code}</code>)`);
+      if (inlineKeyboard.length < 6 && !m.needsWateringNow && !m.needsMistingNow) {
+        inlineKeyboard.push([
+          {
+            text: `🔄 چرخش ۹۰° ${p.code}`,
+            callback_data: `act:r:${p.id}`
+          },
+          {
+            text: `📖 شناسنامه ${p.code}`,
+            callback_data: `info:${p.id}`
+          }
+        ]);
+      }
+    }
+  });
+
+  // نوار کنترل ۲ ستونه متقارن در پایین داشبورد
+  inlineKeyboard.push([
+    {
+      text: `🪴 فهرست گلدان‌ها (${toPersianNum(spacePlants.length)})`,
+      callback_data: `list:${space.id}`
+    },
+    {
+      text: space.radiatorOn ? '🔥 شوفاژ: روشن' : '🍃 شوفاژ: خاموش',
+      callback_data: `rad:${space.id}`
+    }
+  ]);
+
+  const hasDueItems =
+    thirstyLines.length > 0 || mistLines.length > 0 || rotateLines.length > 0;
+
+  const title =
+    level === 'noon_escalation'
+      ? `🔔 یادآور نوبت رسیدگی • ${space.name}`
+      : `${space.icon} داشبورد زنده • ${space.name}`;
+
+  if (!hasDueItems) {
+    const cleanBody: string[] = [
+      `📅 ${persianToday} • گرمایش شوفاژ: <b>${space.radiatorOn ? 'روشن 🔥' : 'خاموش 🍃'}</b>`,
+      '',
+      `✨ تمام <b>${toPersianNum(spacePlants.length)} گلدان</b> این گلخانه سیراب و متقارن هستند و امروز نیازی به آبیاری ندارند.`
+    ];
+
+    if (healthyLines.length > 0) {
+      cleanBody.push(
+        '',
+        `<blockquote expandable>🌿 <b>وضعیت رطوبت گلدان‌های سیراب (${toPersianNum(
+          healthyLines.length
+        )} گلدان):</b>\n${healthyLines.join('\n')}</blockquote>`
+      );
+    }
+
+    return {
+      title,
+      bodyHtml: cleanBody.join('\n'),
+      inlineKeyboard,
+      hasDueItems: false
+    };
+  }
+
+  const sections: string[] = [
+    `📅 ${persianToday} • شوفاژ: <b>${space.radiatorOn ? 'روشن 🔥' : 'خاموش 🍃'}</b>`,
+    ''
+  ];
+
+  if (thirstyLines.length > 0) {
+    sections.push(`💧 <b>نوبت آبیاری امروز (${toPersianNum(thirstyLines.length)} گلدان):</b>`);
+    sections.push(...thirstyLines);
+    sections.push('');
+  }
+
+  if (mistLines.length > 0) {
+    sections.push(`💨 <b>نوبت غبارپاشی برگ (${toPersianNum(mistLines.length)} گلدان):</b>`);
+    sections.push(...mistLines);
+    sections.push('');
+  }
+
+  if (rotateLines.length > 0) {
+    sections.push(`🔄 <b>نوبت چرخش ۹۰ درجه (${toPersianNum(rotateLines.length)} گلدان):</b>`);
+    sections.push(...rotateLines);
+  }
+
+  if (healthyLines.length > 0) {
+    sections.push(
+      '',
+      `<blockquote expandable>✅ <b>سایر گلدان‌های سیراب (${toPersianNum(
+        healthyLines.length
+      )} مورد):</b>\n${healthyLines.join('\n')}</blockquote>`
+    );
+  }
+
+  return {
+    title,
+    bodyHtml: sections.join('\n').trim(),
+    inlineKeyboard,
+    hasDueItems: true
+  };
+};
+
 export const sendScheduledEscalationReport = async (params: {
   space: SpaceEntity;
   plants: PlantEntity[];
@@ -568,202 +796,101 @@ export const sendScheduledEscalationReport = async (params: {
     customTargetChatIds
   } = params;
 
-  const spacePlants = plants.filter((p) => {
-    if (p.archived) return false;
-    const spId = pickStr(p.spaceId, 'office');
-    return spId === space.id;
-  });
+  const built = buildSpaceStatusCardContent({ space, plants, gardens, level });
 
-  const persianToday = formatPersianDate(0);
-
-  const thirstyList: string[] = [];
-  const mistList: string[] = [];
-  const rotateList: string[] = [];
-  const inlineKeyboard: TelegramInlineButton[][] = [];
-
-  spacePlants.forEach((p) => {
-    const gObj = gardens.find((g) => g.id === p.garden);
-    const m = CareCalculator.evaluatePlant(p, space.radiatorOn, new Date(), gObj);
-
-    if (m.needsWateringNow) {
-      const fertTag = p.fertDue ? ' + کود' : '';
-      thirstyList.push(
-        `• <b>${p.name}</b>  <code>${toPersianNum(p.doseMl)} سی‌سی</code> (${p.doseCup}${fertTag})`
-      );
-      if (inlineKeyboard.length < 8) {
-        inlineKeyboard.push([
-          {
-            text: `💧 آبیاری ${p.name} (${toPersianNum(p.doseMl)}cc)`,
-            callback_data: `act:w:${p.id}`
-          },
-          {
-            text: '⏳ خاک مرطوب',
-            callback_data: `act:s:${p.id}`
-          }
-        ]);
-      }
-    }
-
-    if (m.needsMistingNow) {
-      mistList.push(`• <b>${p.name}</b>  <code>${p.code}</code>`);
-      if (inlineKeyboard.length < 8 && !m.needsWateringNow) {
-        inlineKeyboard.push([
-          {
-            text: `💦 غبارپاشی ${p.name}`,
-            callback_data: `act:m:${p.id}`
-          }
-        ]);
-      }
-    }
-
-    if (m.needsQuarterTurn) {
-      rotateList.push(`• <b>${p.name}</b>  <code>${p.code}</code>`);
-      if (inlineKeyboard.length < 8 && !m.needsWateringNow && !m.needsMistingNow) {
-        inlineKeyboard.push([
-          {
-            text: `🔄 چرخش ${p.name}`,
-            callback_data: `act:r:${p.id}`
-          }
-        ]);
-      }
-    }
-  });
-
-  inlineKeyboard.push([
-    {
-      text: space.radiatorOn ? '🔥 شوفاژ: روشن' : '🍃 شوفاژ: خاموش',
-      callback_data: `rad:${space.id}`
-    },
-    {
-      text: '🪴 لیست همه گیاهان',
-      callback_data: `list:${space.id}`
-    }
-  ]);
+  if (!built.hasDueItems && level !== 'morning' && !forceSendEvenIfEmpty) {
+    return { ok: true, sentCount: 0 };
+  }
 
   const targetChatIds =
     customTargetChatIds && customTargetChatIds.length > 0
       ? customTargetChatIds
       : resolveTargetChatIds(space.id, members, 'alerts');
 
-  const isAllClean =
-    thirstyList.length === 0 && mistList.length === 0 && rotateList.length === 0;
-
-  if (isAllClean) {
-    const shouldSendEmpty = level === 'morning' ? true : Boolean(forceSendEvenIfEmpty);
-    if (shouldSendEmpty) {
-      const cleanEmptyBody = [
-        `📅 ${persianToday}`,
-        '',
-        `✨ تمام <b>${toPersianNum(spacePlants.length)} گلدان</b> سیراب و متقارن هستند و امروز نیازی به رسیدگی ندارند.`,
-        '',
-        `🌡️ شوفاژ: <b>${space.radiatorOn ? 'روشن' : 'خاموش'}</b>`
-      ].join('\n');
-
-      return await sendTelegramToTargets(
-        `${space.icon} ${space.name}`,
-        cleanEmptyBody,
-        targetChatIds,
-        inlineKeyboard
-      );
-    }
-    return { ok: true, sentCount: 0 };
-  }
-
-  const headerTitle =
-    level === 'morning'
-      ? `${space.icon} ${space.name}`
-      : `🔔 یادآور ظهر • ${space.name}`;
-
-  const sections: string[] = [`📅 ${persianToday}`, ''];
-
-  if (thirstyList.length > 0) {
-    sections.push(`💧 <b>آبیاری امروز (${toPersianNum(thirstyList.length)})</b>`);
-    sections.push(...thirstyList);
-    sections.push('');
-  }
-
-  if (mistList.length > 0) {
-    sections.push(`💦 <b>غبارپاشی (${toPersianNum(mistList.length)})</b>`);
-    sections.push(...mistList);
-    sections.push('');
-  }
-
-  if (rotateList.length > 0) {
-    sections.push(`🔄 <b>چرخش ۹۰ درجه (${toPersianNum(rotateList.length)})</b>`);
-    sections.push(...rotateList);
-    sections.push('');
-  }
-
-  sections.push(`🌡️ شوفاژ: <b>${space.radiatorOn ? 'روشن' : 'خاموش'}</b>`);
-
   return await sendTelegramToTargets(
-    headerTitle,
-    sections.join('\n'),
+    built.title,
+    built.bodyHtml,
     targetChatIds,
-    inlineKeyboard
+    built.inlineKeyboard
   );
 };
 
-// ۳. ارسال کارت شناسنامه و پنل مدیریت اختصاصی یک گیاه در داخل تلگرام
-const sendPlantInteractiveCardToTelegram = async (params: {
+// ============================================================================
+// ۳. کارت شناسنامه گیاه در تلگرام (با پشتیبانی از ویرایش درجا editMessageText)
+// ============================================================================
+const renderPlantProfileCardInTelegram = async (params: {
+  token: string;
   plant: PlantEntity;
   space: SpaceEntity;
   gardenName: string;
   chatId: string;
+  messageIdToEdit?: number;
 }): Promise<void> => {
-  const { plant, space, gardenName, chatId } = params;
+  const { token, plant, space, gardenName, chatId, messageIdToEdit } = params;
   const m = CareCalculator.evaluatePlant(plant, space.radiatorOn);
 
-  const statusLabel =
+  const statusBadge =
     m.dynamicStatus === 'thirsty'
-      ? '🚨 تشنه (نیازمند آبیاری)'
+      ? '🚨 تشنه آبیاری'
       : m.dynamicStatus === 'mist'
-      ? '💦 نیازمند غبارپاشی'
+      ? '💨 نیازمند غبارپاشی'
       : m.dynamicStatus === 'locked'
-      ? `🔒 سیراب و قفل (${toPersianNum(m.daysRemaining)} روز مانده)`
-      : m.dynamicStatus === 'recovery'
-      ? '🩺 دوره نقاهت پس از هرس'
-      : `✅ سیراب (${toPersianNum(m.daysRemaining)} روز تا آبیاری بعدی)`;
+      ? `🔒 سیراب (${toPersianNum(m.daysRemaining)} روز مانده)`
+      : `✅ کاملاً سیراب (${toPersianNum(m.daysRemaining)} روز تا آبیاری)`;
 
-  const lastLog = plant.history[0];
-  const heightCm = plant.plantHeightCm ? plant.plantHeightCm : 25;
+  const lastLog = plant.history?.[0];
+  const title = `🪴 ${plant.name} • پلاک ${plant.code}`;
 
-  const lines: string[] = [
-    `${space.icon} ${space.name} • ${gardenName}`,
-    `• وضعیت: <b>${statusLabel}</b>`,
-    `• رطوبت خاک: <code>${toPersianNum(m.moisturePercent)}٪</code>`,
-    `• پیمانه آب: <code>${toPersianNum(plant.doseMl)} سی‌سی</code> (${plant.doseCup})`,
-    `• دوره آبیاری: هر ${toPersianNum(m.effectiveCycleDays)} روز`,
-    `• رطوبت برگ: ${plant.mistNeed}`
+  const bodyLines: string[] = [
+    `📍 ${space.icon} ${space.name} (${gardenName})`,
+    `<blockquote>• وضعیت: <b>${statusBadge}</b>\n• رطوبت فعلی بستر: <b>${toPersianNum(
+      m.moisturePercent
+    )}٪</b>\n• پیمانه دقیق آبیاری: <b>${toPersianNum(
+      plant.doseMl
+    )} میلی‌لیتر</b> (${plant.doseCup})\n• دوره آبیاری: هر ${toPersianNum(
+      m.effectiveCycleDays
+    )} روز یک‌بار\n• حجم خاک: ${toPersianNum(
+      plant.potVolumeLiters || 2
+    )} لیتر • قد: ${toPersianNum(plant.plantHeightCm || 28)} سانتی‌متر</blockquote>`
   ];
 
-  if (plant.potVolumeLiters) {
-    lines.push(
-      `• مشخصات گلدان: حجم ${toPersianNum(plant.potVolumeLiters)} لیتر • قد ${toPersianNum(heightCm)}cm`
+  // جزئیات تکمیلی در بلوک تاشوی بازشونده (expandable) تا صفحه شلوغ نشود
+  const extraDetails: string[] = [];
+  if (plant.mistNeed) extraDetails.push(`💨 <b>غبارپاشی:</b> ${plant.mistNeed}`);
+  if (plant.light) extraDetails.push(`☀️ <b>نور:</b> ${plant.light}`);
+  if (lastLog) {
+    extraDetails.push(
+      `🕒 <b>آخرین ثبت:</b> ${lastLog.action.replace(/سی‌سی|cc/gi, 'میلی‌لیتر')} (${lastLog.by})`
     );
   }
-  if (lastLog) {
-    lines.push(`• آخرین اقدام: ${lastLog.action} (${lastLog.by})`);
+
+  if (extraDetails.length > 0) {
+    bodyLines.push(
+      `<blockquote expandable>📖 <b>راهنمای نگهداری و آخرین وضعیت:</b>\n${extraDetails.join(
+        '\n'
+      )}</blockquote>`
+    );
   }
 
+  // گرید متقارن ۲ ستونه دکمه‌های عملیاتی گیاه
   const buttons: TelegramInlineButton[][] = [
     [
       {
-        text: `💧 ثبت آبیاری (${toPersianNum(plant.doseMl)}cc)`,
+        text: `💧 ثبت آبیاری (${toPersianNum(plant.doseMl)}ml)`,
         callback_data: `act:w:${plant.id}`
       },
       {
-        text: '💦 ثبت غبارپاشی',
+        text: '💨 ثبت غبارپاشی',
         callback_data: `act:m:${plant.id}`
       }
     ],
     [
       {
-        text: '🔄 ثبت چرخش ۹۰°',
+        text: '🔄 چرخش ۹۰ درجه',
         callback_data: `act:r:${plant.id}`
       },
       {
-        text: '⏳ خاک مرطوب (تعویق)',
+        text: '🛡️ خاک مرطوب (تعویق)',
         callback_data: `act:s:${plant.id}`
       }
     ],
@@ -779,66 +906,98 @@ const sendPlantInteractiveCardToTelegram = async (params: {
     ],
     [
       {
-        text: `🔙 بازگشت به لیست ${space.name}`,
+        text: '🔙 فهرست گلدان‌ها',
         callback_data: `list:${space.id}`
+      },
+      {
+        text: '📊 داشبورد گلخانه',
+        callback_data: `status:${space.id}`
       }
     ]
   ];
 
-  await sendTelegramToTargets(
-    `🪴 ${plant.name} (${plant.code})`,
-    lines.join('\n'),
-    [chatId],
-    buttons
-  );
+  if (messageIdToEdit) {
+    const edited = await editTelegramMessageInPlace({
+      token,
+      chatId,
+      messageId: messageIdToEdit,
+      title,
+      bodyHtml: bodyLines.join('\n'),
+      inlineKeyboard: buttons
+    });
+    if (edited) return;
+  }
+
+  await sendTelegramToTargets(title, bodyLines.join('\n'), [chatId], buttons);
 };
 
-// ۴. ارسال فهرست دکمه‌ای تمام گیاهان یک گلخانه در داخل تلگرام
-const sendSpacePlantsCatalogToTelegram = async (params: {
+// ============================================================================
+// ۴. فهرست ۲ ستونه و متقارن گلدان‌ها در تلگرام (با ویرایش درجا editMessageText)
+// ============================================================================
+const renderSpacePlantsCatalogInTelegram = async (params: {
+  token: string;
   space: SpaceEntity;
   plants: PlantEntity[];
   chatId: string;
+  messageIdToEdit?: number;
 }): Promise<void> => {
-  const { space, plants, chatId } = params;
-  const spPlants = plants.filter((p) => {
-    if (p.archived) return false;
-    const spId = pickStr(p.spaceId, 'office');
-    return spId === space.id;
-  });
+  const { token, space, plants, chatId, messageIdToEdit } = params;
+  const spPlants = plants.filter(
+    (p) => !p.archived && pickStr(p.spaceId, 'office') === space.id
+  );
 
   const rows: TelegramInlineButton[][] = [];
   for (let i = 0; i < spPlants.length; i += 2) {
     const pair: TelegramInlineButton[] = [];
     const p1 = spPlants[i];
     const m1 = CareCalculator.evaluatePlant(p1, space.radiatorOn);
-    const icon1 = m1.needsWateringNow ? '💧' : m1.needsMistingNow ? '💦' : '🌿';
+    const ic1 = m1.needsWateringNow ? '💧' : m1.needsMistingNow ? '💨' : '🌿';
     pair.push({
-      text: `${icon1} ${p1.name} (${p1.code})`,
+      text: `${ic1} ${p1.name} (${p1.code})`,
       callback_data: `info:${p1.id}`
     });
 
     if (spPlants[i + 1]) {
       const p2 = spPlants[i + 1];
       const m2 = CareCalculator.evaluatePlant(p2, space.radiatorOn);
-      const icon2 = m2.needsWateringNow ? '💧' : m2.needsMistingNow ? '💦' : '🌿';
+      const ic2 = m2.needsWateringNow ? '💧' : m2.needsMistingNow ? '💨' : '🌿';
       pair.push({
-        text: `${icon2} ${p2.name} (${p2.code})`,
+        text: `${ic2} ${p2.name} (${p2.code})`,
         callback_data: `info:${p2.id}`
       });
     }
     rows.push(pair);
   }
 
-  await sendTelegramToTargets(
-    `🪴 فهرست گیاهان • ${space.name}`,
-    `مجموع گلدان‌های فعال: <b>${toPersianNum(spPlants.length)} گلدان</b>\nبرای مشاهده شناسنامه یا ثبت عملیات روی گلدان مورد نظر بزنید:`,
-    [chatId],
-    rows
-  );
+  rows.push([
+    {
+      text: `🔙 بازگشت به داشبورد ${space.name}`,
+      callback_data: `status:${space.id}`
+    }
+  ]);
+
+  const title = `🪴 فهرست گلدان‌های «${space.name}»`;
+  const bodyHtml = `مجموع گلدان‌های فعال: <b>${toPersianNum(
+    spPlants.length
+  )} گلدان</b>\n<blockquote>برای مشاهده شناسنامه کامل یا ثبت آبیاری، روی نام گلدان مورد نظر بزنید:</blockquote>`;
+
+  if (messageIdToEdit) {
+    const edited = await editTelegramMessageInPlace({
+      token,
+      chatId,
+      messageId: messageIdToEdit,
+      title,
+      bodyHtml,
+      inlineKeyboard: rows
+    });
+    if (edited) return;
+  }
+
+  await sendTelegramToTargets(title, bodyHtml, [chatId], rows);
 };
 
 // ============================================================================
-// ۵. موتور پردازش سریع دستورات و دکمه‌های تلگرام (Fast Polling)
+// ۵. موتور پردازش سریع دستورات و کلیک‌های درجا در تلگرام
 // ============================================================================
 let isPollingInProgress = false;
 
@@ -848,15 +1007,18 @@ const answerCallbackQuery = async (
   text: string
 ): Promise<void> => {
   try {
-    await fetch(`https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/answerCallbackQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        callback_query_id: callbackQueryId,
-        text,
-        show_alert: false
-      })
-    });
+    await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/answerCallbackQuery`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          text,
+          show_alert: false
+        })
+      }
+    );
   } catch {
     // نادیده گرفتن خطای شبکه
   }
@@ -917,9 +1079,10 @@ export const pollAndProcessTelegramCommands = async (params: {
   const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const res = await fetch(`https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/getUpdates${offsetParam}`, {
-      signal: controller.signal
-    });
+    const res = await fetch(
+      `https://greenhouse-bot.sinafallah-ai.workers.dev/bot${token}/getUpdates${offsetParam}`,
+      { signal: controller.signal }
+    );
     clearTimeout(timeoutId);
     if (!res.ok) {
       isPollingInProgress = false;
@@ -927,11 +1090,7 @@ export const pollAndProcessTelegramCommands = async (params: {
     }
 
     const data = await res.json();
-    if (!data?.ok) {
-      isPollingInProgress = false;
-      return;
-    }
-    if (!Array.isArray(data.result) || data.result.length === 0) {
+    if (!data?.ok || !Array.isArray(data.result) || data.result.length === 0) {
       isPollingInProgress = false;
       return;
     }
@@ -944,7 +1103,7 @@ export const pollAndProcessTelegramCommands = async (params: {
         maxUpdateId = update.update_id;
       }
 
-      const rawMsg = update.message ? update.message : update.edited_message;
+      const rawMsg = update.message || update.edited_message;
       if (rawMsg?.chat?.id) {
         const cid = String(rawMsg.chat.id);
         const txt: string = pickStr(rawMsg.text);
@@ -956,7 +1115,7 @@ export const pollAndProcessTelegramCommands = async (params: {
         const fullName = [rawMsg.chat.first_name, rawMsg.chat.last_name]
           .filter(Boolean)
           .join(' ');
-        const finalInvite = invitedId ? invitedId : prev?.invitedMemberId;
+        const finalInvite = invitedId || prev?.invitedMemberId;
 
         cachedSubscribersMap.set(cid, {
           chatId: cid,
@@ -975,15 +1134,15 @@ export const pollAndProcessTelegramCommands = async (params: {
         continue;
       }
 
-      // الف) پردازش کلیک روی دکمه‌های شیشه‌ای (Inline Callback Queries)
+      // الف) پردازش کلیک روی دکمه‌های زیر کارت (همراه با ویرایش درجای همان پیام)
       if (update.callback_query) {
         const cb = update.callback_query;
-        const rawChatId = cb.message?.chat?.id ? cb.message.chat.id : cb.from?.id;
+        const rawChatId = cb.message?.chat?.id || cb.from?.id;
         const chatId = rawChatId ? String(rawChatId) : '';
+        const messageId: number | undefined = cb.message?.message_id;
         const cbData: string = pickStr(cb.data);
 
         const matchedMember = findMemberByChatId(chatId, members, defaultChatId);
-
         if (!matchedMember) {
           await answerCallbackQuery(token, cb.id, '⛔ حساب شما هنوز متصل نشده است.');
           continue;
@@ -999,9 +1158,9 @@ export const pollAndProcessTelegramCommands = async (params: {
           }
 
           const plantSpaceId = pickStr(targetPlant.spaceId, 'office');
-          const isSuper = matchedMember.role === 'super_admin';
-          const isAssigned = matchedMember.assignedSpaces.includes(plantSpaceId);
-          const hasAccess = isSuper ? true : isAssigned;
+          const hasAccess =
+            matchedMember.role === 'super_admin' ||
+            matchedMember.assignedSpaces.includes(plantSpaceId);
 
           if (!hasAccess) {
             await answerCallbackQuery(token, cb.id, '⛔ عدم دسترسی به این گلخانه.');
@@ -1017,8 +1176,7 @@ export const pollAndProcessTelegramCommands = async (params: {
             x: 'repot',
             c: 'clean_leaves'
           };
-          const mappedAction = actionMap[shortCode];
-          const actionType: CareActionType = mappedAction ? mappedAction : 'water';
+          const actionType: CareActionType = actionMap[shortCode] || 'water';
 
           onExecuteRemotePlantAction(targetPlant.id, actionType, matchedMember.name);
           await answerCallbackQuery(token, cb.id, `✅ برای «${targetPlant.name}» ثبت شد`);
@@ -1027,95 +1185,136 @@ export const pollAndProcessTelegramCommands = async (params: {
           const targetPlant = plants.find((p) => p.id === plantId);
           if (targetPlant) {
             const spId = pickStr(targetPlant.spaceId, 'office');
-            const foundSp = spaces.find((s) => s.id === spId);
-            const sp = foundSp ? foundSp : spaces[0];
-            const foundGarden = gardens.find((g) => g.id === targetPlant.garden);
-            const gName = foundGarden ? foundGarden.name : 'باغچه اصلی';
-            await answerCallbackQuery(token, cb.id, `🪴 شناسنامه ${targetPlant.name}`);
-            await sendPlantInteractiveCardToTelegram({
+            const sp = spaces.find((s) => s.id === spId) || spaces[0];
+            const gName =
+              gardens.find((g) => g.id === targetPlant.garden)?.name || 'باغچه اصلی';
+            await answerCallbackQuery(token, cb.id, `🪴 ${targetPlant.name}`);
+            await renderPlantProfileCardInTelegram({
+              token,
               plant: targetPlant,
               space: sp,
               gardenName: gName,
-              chatId
+              chatId,
+              messageIdToEdit: messageId
             });
           }
         } else if (cbData.startsWith('list:')) {
           const spaceId = cbData.replace('list:', '');
           const targetSpace = spaces.find((s) => s.id === spaceId);
           if (targetSpace) {
-            await answerCallbackQuery(token, cb.id, `🪴 لیست گیاهان ${targetSpace.name}`);
-            await sendSpacePlantsCatalogToTelegram({
+            await answerCallbackQuery(token, cb.id, `🪴 فهرست گلدان‌ها`);
+            await renderSpacePlantsCatalogInTelegram({
+              token,
               space: targetSpace,
               plants,
-              chatId
+              chatId,
+              messageIdToEdit: messageId
             });
           }
         } else if (cbData.startsWith('rad:')) {
           const spaceId = cbData.replace('rad:', '');
           const targetSpace = spaces.find((s) => s.id === spaceId);
           if (targetSpace) {
-            const isSuper = matchedMember.role === 'super_admin';
-            const isAssigned = matchedMember.assignedSpaces.includes(spaceId);
-            const hasAccess = isSuper ? true : isAssigned;
+            const hasAccess =
+              matchedMember.role === 'super_admin' ||
+              matchedMember.assignedSpaces.includes(spaceId);
             if (!hasAccess) {
               await answerCallbackQuery(token, cb.id, '⛔ عدم دسترسی.');
               continue;
             }
             onToggleRemoteSpaceRadiator(spaceId, matchedMember.name);
-            await answerCallbackQuery(token, cb.id, '🌡️ وضعیت شوفاژ تغییر کرد');
+            const toggledSpace: SpaceEntity = {
+              ...targetSpace,
+              radiatorOn: !targetSpace.radiatorOn
+            };
+            await answerCallbackQuery(
+              token,
+              cb.id,
+              toggledSpace.radiatorOn ? '🔥 شوفاژ روشن شد' : '🍃 شوفاژ خاموش شد'
+            );
+            if (messageId) {
+              const updatedCard = buildSpaceStatusCardContent({
+                space: toggledSpace,
+                plants,
+                gardens,
+                level: 'morning'
+              });
+              await editTelegramMessageInPlace({
+                token,
+                chatId,
+                messageId,
+                title: updatedCard.title,
+                bodyHtml: updatedCard.bodyHtml,
+                inlineKeyboard: updatedCard.inlineKeyboard
+              });
+            }
           }
         } else if (cbData.startsWith('status:')) {
           const spaceId = cbData.replace('status:', '');
           const targetSpace = spaces.find((s) => s.id === spaceId);
           if (targetSpace) {
-            await answerCallbackQuery(token, cb.id, '📊 ارسال گزارش...');
-            await sendScheduledEscalationReport({
+            await answerCallbackQuery(token, cb.id, '🌿 داشبورد گلخانه');
+            const built = buildSpaceStatusCardContent({
               space: targetSpace,
               plants,
               gardens,
-              members,
-              level: 'morning',
-              forceSendEvenIfEmpty: true,
-              customTargetChatIds: [chatId]
+              level: 'morning'
             });
+            if (messageId) {
+              const edited = await editTelegramMessageInPlace({
+                token,
+                chatId,
+                messageId,
+                title: built.title,
+                bodyHtml: built.bodyHtml,
+                inlineKeyboard: built.inlineKeyboard
+              });
+              if (edited) continue;
+            }
+            await sendTelegramToTargets(
+              built.title,
+              built.bodyHtml,
+              [chatId],
+              built.inlineKeyboard
+            );
           }
         }
         continue;
       }
 
-      // ب) پردازش پیام‌های متنی و کلیدهای کیبورد فارسی
+      // ب) پردازش پیام‌های متنی و دستورات منوی تلگرام (/start, /status, /plants...)
       const msg = update.message;
-      if (!msg) continue;
-      if (!msg.chat?.id) continue;
-      if (!msg.text) continue;
+      if (!msg?.chat?.id || !msg?.text) continue;
 
       const chatId = String(msg.chat.id);
       const text = msg.text.trim();
+
+      // به محض دریافت هر پیام متنی، مطمئن شو کیبورد ۴ ردیفه قدیمی جمع شده و منوی رسمی ست شده است
+      await ensureLegacyReplyKeyboardCleared(token, chatId);
 
       if (text.startsWith('/start join_')) {
         const invitedMemId = text.replace('/start join_', '').trim();
         const targetMem = members.find((m) => m.id === invitedMemId);
         if (targetMem) {
           onAutoBindMemberChatId(invitedMemId, chatId, msg.chat.username);
-          const allowedSpacesNames = spaces
-            .filter((s) =>
-              targetMem.role === 'super_admin'
-                ? true
-                : targetMem.assignedSpaces.includes(s.id)
-            )
-            .map((s) => `${s.icon} ${s.name}`)
-            .join(' ، ');
+          const allowedSpaces = spaces.filter((s) =>
+            targetMem.role === 'super_admin'
+              ? true
+              : targetMem.assignedSpaces.includes(s.id)
+          );
+          const firstSp = allowedSpaces[0] || spaces[0];
+          const built = buildSpaceStatusCardContent({
+            space: firstSp,
+            plants,
+            gardens,
+            level: 'morning'
+          });
 
           await sendTelegramToTargets(
-            `✅ اتصال موفق • ${targetMem.name}`,
-            [
-              'حساب تلگرام شما به گلخانه متصل شد.',
-              `• گلخانه: <b>${allowedSpacesNames}</b>`,
-              '',
-              'از دکمه‌های پایین صفحه برای مدیریت استفاده کنید:'
-            ].join('\n'),
+            `✅ خوش آمدید ${targetMem.name} عزیز • حساب شما متصل شد`,
+            built.bodyHtml,
             [chatId],
-            undefined,
+            built.inlineKeyboard,
             true
           );
           continue;
@@ -1123,12 +1322,13 @@ export const pollAndProcessTelegramCommands = async (params: {
       }
 
       const matchedMember = findMemberByChatId(chatId, members, defaultChatId);
-
       if (!matchedMember) {
         await sendTelegramToTargets(
           '🌱 گلخانه کوچک من',
-          `کد تلگرام شما: <code>${chatId}</code>\nلطفاً لینک دعوت را از مدیر گلخانه دریافت کنید.`,
-          [chatId]
+          `شناسه تلگرام شما: <code>${chatId}</code>\nلطفاً لینک دعوت اختصاصی خود را از مدیر گلخانه دریافت نمایید.`,
+          [chatId],
+          undefined,
+          true
         );
         continue;
       }
@@ -1138,49 +1338,13 @@ export const pollAndProcessTelegramCommands = async (params: {
           ? spaces
           : spaces.filter((s) => matchedMember.assignedSpaces.includes(s.id));
 
-      const isProfileCommand =
-        text === '/start' ? true : text === '/help' ? true : text.includes('دسترسی من');
-
-      const isStatusCommand =
-        text === '/status'
-          ? true
-          : text === '/thirsty'
-          ? true
-          : text.includes('وضعیت گلخانه')
-          ? true
-          : text.includes('آبیاری امروز')
-          ? true
-          : text.includes('گیاهان تشنه');
-
-      const isCatalogCommand =
-        text === '/plants' ? true : text.includes('شناسنامه گیاهان');
-
-      const isHistoryCommand =
-        text === '/history' ? true : text.includes('آخرین فعالیت');
-
-      const isMistCommand = text === '/mist' ? true : text.includes('غبارپاشی');
-
-      const isRotateCommand = text === '/rotate' ? true : text.includes('چرخش');
-
-      const isRadiatorCommand = text === '/radiator' ? true : text.includes('شوفاژ');
-
-      if (isProfileCommand) {
-        const spaceTitles = memberSpaces.map((s) => `${s.icon} ${s.name}`).join(' ، ');
-        const roleTitle =
-          matchedMember.role === 'super_admin'
-            ? 'مالک ارشد'
-            : matchedMember.role === 'space_admin'
-            ? 'مدیر گلخانه'
-            : 'همیار مراقبت';
-
-        await sendTelegramToTargets(
-          `👤 ${matchedMember.name}`,
-          [`• نقش: <b>${roleTitle}</b>`, `• گلخانه: <b>${spaceTitles}</b>`].join('\n'),
-          [chatId],
-          undefined,
-          true
-        );
-      } else if (isStatusCommand) {
+      if (
+        text === '/start' ||
+        text === '/status' ||
+        text === '/thirsty' ||
+        text.includes('وضعیت') ||
+        text.includes('آبیاری')
+      ) {
         for (const sp of memberSpaces) {
           await sendScheduledEscalationReport({
             space: sp,
@@ -1192,143 +1356,119 @@ export const pollAndProcessTelegramCommands = async (params: {
             customTargetChatIds: [chatId]
           });
         }
-      } else if (isCatalogCommand) {
+      } else if (text === '/plants' || text.includes('شناسنامه')) {
         for (const sp of memberSpaces) {
-          await sendSpacePlantsCatalogToTelegram({
+          await renderSpacePlantsCatalogInTelegram({
+            token,
             space: sp,
             plants,
             chatId
           });
         }
-      } else if (isHistoryCommand) {
+      } else if (text === '/history' || text.includes('فعالیت')) {
         for (const sp of memberSpaces) {
-          const spPlants = plants.filter((p) => {
-            if (p.archived) return false;
-            const spId = pickStr(p.spaceId, 'office');
-            return spId === sp.id;
-          });
-
-          const recentLogs: Array<{
-            plantName: string;
-            code: string;
-            action: string;
-            by: string;
-            date: string;
-          }> = [];
-
+          const spPlants = plants.filter(
+            (p) => !p.archived && pickStr(p.spaceId, 'office') === sp.id
+          );
+          const recentLogs: string[] = [];
           spPlants.forEach((p) => {
             if (p.history && p.history.length > 0) {
               const latest = p.history[0];
-              recentLogs.push({
-                plantName: p.name,
-                code: p.code,
-                action: latest.action,
-                by: latest.by,
-                date: pickStr(latest.persianDate, latest.time)
-              });
+              recentLogs.push(
+                `• <b>${p.name}</b> (<code>${p.code}</code>): ${latest.action.replace(
+                  /سی‌سی|cc/gi,
+                  'میلی‌لیتر'
+                )} — ${latest.by}`
+              );
             }
           });
-
-          const topLogs = recentLogs.slice(0, 8);
           const body =
-            topLogs.length > 0
-              ? topLogs
-                  .map(
-                    (l) =>
-                      `• <b>${l.plantName}</b> (<code>${l.code}</code>)\n   └ ${l.action} • ${l.by} (${l.date})`
-                  )
-                  .join('\n')
+            recentLogs.length > 0
+              ? `<blockquote>${recentLogs.slice(0, 8).join('\n')}</blockquote>`
               : 'هنوز فعالیتی ثبت نشده است.';
 
           await sendTelegramToTargets(
-            `📅 آخرین فعالیت‌ها • ${sp.name}`,
+            `🕒 آخرین فعالیت‌ها • ${sp.name}`,
             body,
             [chatId]
           );
         }
-      } else if (isMistCommand) {
+      } else if (text === '/mist' || text.includes('غبارپاشی')) {
         for (const sp of memberSpaces) {
-          const spPlants = plants.filter((p) => {
-            if (p.archived) return false;
-            const spId = pickStr(p.spaceId, 'office');
-            return spId === sp.id;
-          });
+          const spPlants = plants.filter(
+            (p) => !p.archived && pickStr(p.spaceId, 'office') === sp.id
+          );
           const mistButtons: TelegramInlineButton[][] = [];
           const lines: string[] = [];
-
           spPlants.forEach((p) => {
             const m = CareCalculator.evaluatePlant(p, sp.radiatorOn);
             if (m.needsMistingNow) {
-              lines.push(`• <b>${p.name}</b>  <code>${p.code}</code>`);
+              lines.push(`• <b>${p.name}</b> (<code>${p.code}</code>)`);
               mistButtons.push([
                 {
-                  text: `💦 ثبت غبارپاشی ${p.name}`,
+                  text: `💨 ثبت غبارپاشی ${p.code}`,
                   callback_data: `act:m:${p.id}`
+                },
+                {
+                  text: `📖 شناسنامه ${p.code}`,
+                  callback_data: `info:${p.id}`
                 }
               ]);
             }
           });
-
-          const body =
+          await sendTelegramToTargets(
+            `💨 نوبت غبارپاشی • ${sp.name}`,
             lines.length > 0
               ? lines.join('\n')
-              : '✨ امروز هیچ گلدانی نیاز به غبارپاشی ندارد.';
-
-          await sendTelegramToTargets(
-            `💦 غبارپاشی • ${sp.name}`,
-            body,
+              : '✨ امروز هیچ گلدانی نیاز به غبارپاشی ندارد.',
             [chatId],
             mistButtons
           );
         }
-      } else if (isRotateCommand) {
+      } else if (text === '/rotate' || text.includes('چرخش')) {
         for (const sp of memberSpaces) {
-          const spPlants = plants.filter((p) => {
-            if (p.archived) return false;
-            const spId = pickStr(p.spaceId, 'office');
-            return spId === sp.id;
-          });
+          const spPlants = plants.filter(
+            (p) => !p.archived && pickStr(p.spaceId, 'office') === sp.id
+          );
           const rotButtons: TelegramInlineButton[][] = [];
           const lines: string[] = [];
-
           spPlants.forEach((p) => {
             const m = CareCalculator.evaluatePlant(p, sp.radiatorOn);
             if (m.needsQuarterTurn) {
-              lines.push(`• <b>${p.name}</b>  <code>${p.code}</code>`);
+              lines.push(`• <b>${p.name}</b> (<code>${p.code}</code>)`);
               rotButtons.push([
                 {
-                  text: `🔄 ثبت چرخش ${p.name}`,
+                  text: `🔄 چرخش ۹۰° ${p.code}`,
                   callback_data: `act:r:${p.id}`
+                },
+                {
+                  text: `📖 شناسنامه ${p.code}`,
+                  callback_data: `info:${p.id}`
                 }
               ]);
             }
           });
-
-          const body =
+          await sendTelegramToTargets(
+            `🔄 نوبت چرخش ۹۰ درجه • ${sp.name}`,
             lines.length > 0
               ? lines.join('\n')
-              : '✨ تمام گلدان‌ها متقارن هستند.';
-
-          await sendTelegramToTargets(
-            `🔄 چرخش ۹۰ درجه • ${sp.name}`,
-            body,
+              : '✨ تمام گلدان‌ها متقارن هستند.',
             [chatId],
             rotButtons
           );
         }
-      } else if (isRadiatorCommand) {
+      } else if (text === '/radiator' || text.includes('شوفاژ')) {
         const radButtons: TelegramInlineButton[][] = memberSpaces.map((sp) => [
           {
             text: `${sp.icon} ${sp.name}: ${
-              sp.radiatorOn ? '🔥 روشن (تغییر به خاموش)' : '🍃 خاموش (تغییر به روشن)'
+              sp.radiatorOn ? '🔥 روشن (خاموش کردن)' : '🍃 خاموش (روشن کردن)'
             }`,
             callback_data: `rad:${sp.id}`
           }
         ]);
-
         await sendTelegramToTargets(
-          '🌡️ وضعیت شوفاژ',
-          'برای تغییر وضعیت شوفاژ روی دکمه زیر بزنید:',
+          '🔥 مدیریت گرمایش شوفاژ',
+          'برای تغییر وضعیت شوفاژ گلخانه روی دکمه زیر بزنید:',
           [chatId],
           radButtons
         );
