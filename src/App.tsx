@@ -34,6 +34,12 @@ import {
 } from './components/modals/LifecycleModals';
 import { SettingsAndMembersModal } from './components/modals/SettingsAndMembersModal';
 import {
+  BotanicalDialogHost,
+  showBotanicalAlert,
+  askBotanicalConfirm,
+  askBotanicalPrompt
+} from './components/modals/BotanicalDialog';
+import {
   getCloudConfig,
   saveCloudConfig,
   fetchGreenhouseFromCloud,
@@ -744,9 +750,13 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     return plant.garden === activeGarden;
   });
 
-  const toggleSpaceRadiator = () => {
+  const toggleSpaceRadiator = async () => {
     if (!canManageSpaces) {
-      alert('🔒 تغییر وضعیت شوفاژ نیازمند مجوز «شوفاژ و باغچه‌ها» است.');
+      await showBotanicalAlert({
+        title: 'محدودیت دسترسی',
+        message: 'تغییر وضعیت گرمایش شوفاژ نیازمند مجوز «شوفاژ و باغچه‌ها» است.',
+        tone: 'warning'
+      });
       return;
     }
     setSpaces((prev) =>
@@ -787,11 +797,14 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     );
   };
 
-  const handleHardDeletePlant = (plantId: string, plantName: string) => {
+  const handleHardDeletePlant = async (plantId: string, plantName: string) => {
     if (!canDeletePlants) return;
-    const confirmed = window.confirm(
-      `⚠️ آیا از حذف دائمی و کامل «${plantName}» از گلخانه مطمئن هستید؟`
-    );
+    const confirmed = await askBotanicalConfirm({
+      title: `حذف دائمی «${plantName}»`,
+      message: `آیا از حذف دائمی و کامل گلدان «${plantName}» و تمام سوابق آن از گلخانه مطمئن هستید؟`,
+      tone: 'danger',
+      confirmLabel: 'بله، برای همیشه حذف شود'
+    });
     if (!confirmed) return;
 
     setUndoSnapshot(JSON.parse(JSON.stringify(plants)));
@@ -800,10 +813,14 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     setUndoMessage(`گلدان «${plantName}» به طور دائمی حذف شد.`);
   };
 
-  const handleDeleteGarden = (gardenId: string) => {
+  const handleDeleteGarden = async (gardenId: string) => {
     if (!canManageSpaces) return;
     if (spaceGardens.length <= 1) {
-      alert('⚠️ هر گلخانه باید حداقل یک باغچه فعال داشته باشد.');
+      await showBotanicalAlert({
+        title: 'حداقل یک باغچه الزامی است',
+        message: 'هر گلخانه باید حداقل یک باغچه فعال داشته باشد و امکان حذف تنها باغچه موجود نیست.',
+        tone: 'warning'
+      });
       return;
     }
 
@@ -811,20 +828,23 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     const fallbackGarden = spaceGardens.find((g) => g.id !== gardenId)!;
     const affectedCount = plants.filter((p) => p.garden === gardenId).length;
 
-    const ok = window.confirm(
-      affectedCount > 0
-        ? `آیا از حذف «${gardenObj?.name}» مطمئن هستید؟ (${toPersianNum(
-            affectedCount
-          )} گلدان موجود در آن به صورت خودکار به «${fallbackGarden.name}» منتقل می‌شوند)`
-        : `آیا از حذف باغچه «${gardenObj?.name}» مطمئن هستید؟`
-    );
+    const ok = await askBotanicalConfirm({
+      title: `حذف باغچه «${gardenObj?.name || ''}»`,
+      message:
+        affectedCount > 0
+          ? `آیا از حذف «${gardenObj?.name}» مطمئن هستید؟ (${toPersianNum(
+              affectedCount
+            )} گلدان موجود در آن به صورت خودکار به «${fallbackGarden.name}» منتقل می‌شوند)`
+          : `آیا از حذف باغچه «${gardenObj?.name}» مطمئن هستید؟`,
+      tone: 'danger',
+      confirmLabel: 'بله، باغچه حذف شود'
+    });
     if (!ok) return;
 
     setPlants((prev) =>
       prev.map((p) => (p.garden === gardenId ? { ...p, garden: fallbackGarden.id } : p))
     );
     setGardens((prev) => prev.filter((g) => g.id !== gardenId));
-    // انتقال خودکار دسترسی اعضایی که به این باغچه محدود شده بودند به باغچه جایگزین
     setMembers((prev) =>
       prev.map((m) =>
         m.assignedGardens && m.assignedGardens.includes(gardenId)
@@ -844,12 +864,15 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     if (activeGarden === gardenId) setActiveGarden('all');
   };
 
-  const handleDeleteSpace = (spaceId: string) => {
+  const handleDeleteSpace = async (spaceId: string) => {
     if (!isSuperAdmin || spaces.length <= 1) return;
     const sp = spaces.find((s) => s.id === spaceId);
-    const ok = window.confirm(
-      `⚠️ آیا از حذف کامل «${sp?.name}» و باغچه‌های داخل آن مطمئن هستید؟`
-    );
+    const ok = await askBotanicalConfirm({
+      title: `حذف کامل «${sp?.name || ''}»`,
+      message: `آیا از حذف کامل فضای «${sp?.name}» به همراه تمام باغچه‌ها و گلدان‌های داخل آن مطمئن هستید؟`,
+      tone: 'danger',
+      confirmLabel: 'بله، کامل حذف شود'
+    });
     if (!ok) return;
 
     const remainingSpaces = spaces.filter((s) => s.id !== spaceId);
@@ -895,7 +918,10 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     );
   };
 
-  const handlePromoteCuttingToPlant = (motherPlant: PlantEntity, cuttingId: string) => {
+  const handlePromoteCuttingToPlant = async (
+    motherPlant: PlantEntity,
+    cuttingId: string
+  ) => {
     const nextIdx = spaceActivePlants.length + 1;
     const newCode = `#${toPersianNum(String(nextIdx).padStart(2, '0'))}`;
     const todayPersian = formatPersianDate(0);
@@ -937,9 +963,11 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
       `🎉 تولد گلدان جدید در ${currentSpace.name}`,
       `قلمه ریشه‌دار «${motherPlant.name}» به گلدان مستقل (${newCode}) منتقل شد.`
     );
-    alert(
-      `🌱 تبریک! قلمه ریشه‌دار به عنوان گلدان جدید (${newCode}) به «${currentSpace.name}» اضافه شد.`
-    );
+    await showBotanicalAlert({
+      title: 'تولد گلدان جدید در گلخانه',
+      message: `قلمه ریشه‌دار با موفقیت به عنوان گلدان مستقل (پلاک ${newCode}) به «${currentSpace.name}» اضافه شد.`,
+      tone: 'success'
+    });
   };
 
   const handleRemoveCutting = (plantId: string, cuttingId: string) => {
@@ -952,13 +980,21 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
     );
   };
 
-  const handleArchivePlant = (plant: PlantEntity) => {
+  const handleArchivePlant = async (plant: PlantEntity, directReason?: string) => {
     if (!canDeletePlants) return;
-    const reason = window.prompt(
-      `علت انتقال «${plant.name}» به تالار یادبود را بنویسید:`,
-      'انتقال یا تغییر وضعیت'
-    );
-    if (reason === null) return;
+    let reason = directReason;
+    if (reason === undefined) {
+      const entered = await askBotanicalPrompt({
+        title: `انتقال «${plant.name}» به تالار یادبود`,
+        message: 'لطفاً علت انتقال این گلدان به تالار یادبود و آرشیو را بنویسید:',
+        defaultValue: 'هدیه دادن یا انتقال به فضای دیگر',
+        placeholder: 'علت انتقال...',
+        tone: 'info',
+        confirmLabel: 'انتقال به یادبود ✓'
+      });
+      if (entered === null) return;
+      reason = entered;
+    }
 
     setPlants((prev) =>
       prev.map((p) =>
@@ -1031,19 +1067,31 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
           <div className="flex items-center gap-1 shrink-0">
             {!isOwner && !urlMode && (
               <button
-                onClick={() => {
+                onClick={async () => {
                   const ownerMember = members.find((m) => m.role === 'super_admin');
                   if (ownerMember?.pinCode) {
-                    const entered = window.prompt('🔒 پین‌کد ۴ رقمی مالک ارشد را وارد کنید:');
+                    const entered = await askBotanicalPrompt({
+                      title: 'قفل امنیتی مدیریت ارشد',
+                      message: 'برای خروج از حالت پیش‌نمایش و بازگشت به مدیریت، پین‌کد ۴ رقمی مالک ارشد را وارد کنید:',
+                      placeholder: '••••',
+                      isPin: true,
+                      tone: 'info',
+                      confirmLabel: 'بررسی پین‌کد ✓'
+                    });
+                    if (entered === null) return;
                     if (entered !== ownerMember.pinCode) {
-                      alert('❌ پین‌کد واردشده صحیح نیست.');
+                      await showBotanicalAlert({
+                        title: 'پین‌کد نامعتبر',
+                        message: 'پین‌کد ۴ رقمی واردشده صحیح نیست.',
+                        tone: 'danger'
+                      });
                       return;
                     }
                   }
                   setPreviewMemberId(null);
                   setUserRole('owner');
                 }}
-                className="px-2 h-[36px] rounded-xl bg-[#3A5A40] text-white text-[10px] font-bold whitespace-nowrap"
+                className="px-2 h-[36px] rounded-xl bg-[#3A5A40] text-white text-[10px] font-bold whitespace-nowrap active:scale-95 transition-transform"
               >
                 بازگشت به مدیریت
               </button>
@@ -1633,25 +1681,36 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
         ) : (
           <section className="grid grid-cols-2 gap-2.5 items-stretch">
             {filteredEvaluated.map(({ plant, metrics }) => {
-              const cuttingsCount = plant.cuttings?.length || 0;
+              const isThirsty = metrics.dynamicStatus === 'thirsty';
+              const isMist = metrics.dynamicStatus === 'mist';
+
               return (
                 <div
                   key={plant.id}
                   onClick={() => setSelectedPlantId(plant.id)}
-                  className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-[20px] p-2.5 warm-shadow flex flex-col justify-between transition-transform active:scale-[0.98] cursor-pointer h-full"
+                  className={`bg-[#FDFBF7] border rounded-[22px] p-2.5 warm-shadow flex flex-col justify-between transition-all active:scale-[0.98] cursor-pointer h-full ${
+                    isThirsty
+                      ? 'border-[#C85A32]/40 ring-1 ring-[#C85A32]/15'
+                      : 'border-[#E8E2D5] hover:border-[#2E5A44]/35'
+                  }`}
                 >
                   <div>
+                    {/* ردیف ۱: نام باغچه و پلاک متقارن */}
                     <div className="flex items-center justify-between gap-1 mb-2">
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-[#F6F3EC] text-[#5A655E] border border-[#E8E2D5] whitespace-nowrap truncate">
-                        {getGardenName(plant.garden)}
+                      <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg bg-[#F6F3EC] text-[#5A655E] border border-[#E8E2D5] whitespace-nowrap truncate">
+                        📍 {getGardenName(plant.garden)}
                       </span>
-                      <span className="persian-num text-[10.5px] font-bold text-[#5A655E] shrink-0">
+                      <span className="persian-num px-1.5 py-0.5 rounded-lg bg-[#E6F0EB] border border-[#2E5A44]/20 text-[9.5px] font-extrabold text-[#2E5A44] shrink-0">
                         {plant.code}
                       </span>
                     </div>
 
-                    <div className="relative h-28 rounded-2xl bg-gradient-to-b from-[#F6F3EC]/75 to-[#FDFBF7] border border-[#E8E2D5]/80 flex flex-col items-center justify-center overflow-hidden mb-2">
-                      {metrics.needsQuarterTurn && !isVisitor && (
+                    {/* ردیف ۲: صحنه استودیویی گیاه با طاق نوری و سکوی سه‌بعدی */}
+                    <div className="relative h-30 rounded-2xl bg-gradient-to-b from-[#FDFBF7] via-[#F7F3EA] to-[#EFE9DC] border border-[#E8E2D5] flex flex-col items-center justify-center overflow-hidden mb-2">
+                      {/* طاق نوری استودیویی در پس‌زمینه */}
+                      <div className="w-20 h-20 rounded-t-full bg-gradient-to-b from-[#E6F0EB]/60 to-transparent border-t border-x border-[#2E5A44]/10 absolute top-3 pointer-events-none" />
+
+                      {metrics.needsQuarterTurn && canWaterAndMist && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1661,67 +1720,87 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
                             );
                             setConfirmState({ plant, actionType: 'rotate' });
                           }}
-                          className="absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 rounded-lg bg-[#FEF6E7] hover:bg-[#B47B26] text-[#B47B26] hover:text-white border border-[#B47B26]/35 text-[9.5px] font-bold flex items-center gap-0.5 transition-colors"
+                          className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded-lg bg-[#FEF6E7] hover:bg-[#B47B26] text-[#B47B26] hover:text-white border border-[#B47B26]/35 text-[8.5px] font-extrabold flex items-center gap-0.5 transition-colors shadow-2xs"
                         >
-                          <IconRotate90 className="w-3 h-3" />
+                          <IconRotate90 className="w-2.5 h-2.5" />
                           <span className="persian-num">چرخش ۹۰°</span>
                         </button>
                       )}
 
-                      {metrics.needsWateringNow && metrics.needsMistingNow && !isVisitor && (
-                        <span className="absolute bottom-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded-md bg-[#E8F4F8] text-[#2B7A9B] border border-[#2B7A9B]/30 text-[9px] font-bold">
-                          +💦 غبارپاشی
-                        </span>
-                      )}
-
-                      {cuttingsCount > 0 && (
-                        <div className="persian-num absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-[#E6F0EB] text-[#2E5A44] text-[9px] font-bold">
-                          🌱 {toPersianNum(cuttingsCount)} قلمه
-                        </div>
-                      )}
-
                       {metrics.climateReducedDays > 0 && !isVisitor && (
-                        <div className="persian-num absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-lg bg-[#FCEEE9] text-[#C85A32] border border-[#C85A32]/25 text-[9px] font-bold">
+                        <div className="persian-num absolute top-1.5 left-1.5 z-20 px-1.5 py-0.5 rounded-lg bg-[#FCEEE9] text-[#C85A32] border border-[#C85A32]/25 text-[8.5px] font-extrabold">
                           🔥 -{toPersianNum(metrics.climateReducedDays)} روز
                         </div>
                       )}
 
-                      <PlantStylizedIllustration
-                        shape={plant.shape3D}
-                        potColor={plant.potColor}
-                        potShape={plant.potShape}
-                        plantName={plant.name}
-                        customSvgMarkup={plant.customSvgMarkup}
-                      />
-                      <div
-                        className={`w-16 h-2 rounded-full -mt-1 ${
-                          metrics.dynamicStatus === 'thirsty'
-                            ? 'bg-[#C85A32]/30 animate-pulse'
-                            : metrics.dynamicStatus === 'mist'
-                            ? 'bg-[#2B7A9B]/30 animate-pulse'
-                            : 'bg-[#2E5A44]/20'
-                        }`}
-                      />
+                      {metrics.needsWateringNow && metrics.needsMistingNow && !isVisitor && (
+                        <span className="absolute bottom-1.5 left-1.5 z-20 px-1.5 py-0.5 rounded-md bg-[#EBF4F8] text-[#1F6380] border border-[#2B7A9B]/30 text-[8.5px] font-extrabold">
+                          +💨 غبارپاشی
+                        </span>
+                      )}
+
+                      <div className="relative z-10 flex flex-col items-center mt-1">
+                        <div className="transform scale-95 z-10">
+                          <PlantStylizedIllustration
+                            shape={plant.shape3D}
+                            potColor={plant.potColor}
+                            potShape={plant.potShape}
+                            plantName={plant.name}
+                            customSvgMarkup={plant.customSvgMarkup}
+                          />
+                        </div>
+                        {/* سکوی استودیویی سه‌بعدی زیر گلدان */}
+                        <svg
+                          className="w-20 h-3 -mt-2.5 pointer-events-none"
+                          viewBox="0 0 120 18"
+                          fill="none"
+                        >
+                          <ellipse
+                            cx="60"
+                            cy="11"
+                            rx="46"
+                            ry="5"
+                            fill={isThirsty ? '#C85A32' : isMist ? '#2B7A9B' : '#1C2822'}
+                            fillOpacity="0.16"
+                          />
+                          <ellipse
+                            cx="60"
+                            cy="8.5"
+                            rx="38"
+                            ry="4"
+                            fill="#D8C9B8"
+                            stroke="#B59672"
+                            strokeWidth="1"
+                          />
+                          <ellipse cx="60" cy="7.5" rx="32" ry="2.5" fill="#EDE3D5" />
+                        </svg>
+                      </div>
                     </div>
 
-                    <h3 className="font-heading text-[12.5px] font-bold text-[#1C2822] leading-snug min-h-[34px] flex items-center">
+                    {/* ردیف ۳: نام گیاه */}
+                    <h3 className="font-heading text-[12.5px] font-extrabold text-[#1C2822] leading-snug min-h-[32px] flex items-center truncate">
                       {plant.name}
                     </h3>
 
-                    <div className="mt-1.5 bg-[#F6F3EC]/80 border border-[#E8E2D5] rounded-xl px-2 py-1 space-y-1">
-                      <div className="flex items-center justify-between gap-1 text-[10px] whitespace-nowrap">
-                        <span className="persian-num font-bold text-[#2B7A9B]">
+                    {/* ردیف ۴: داشبورد مینیاتوری پیمانه آب و درصد رطوبت بستر */}
+                    <div className="mt-1.5 bg-[#F6F3EC] border border-[#E8E2D5] rounded-xl px-2 py-1.5 space-y-1.5">
+                      <div className="flex items-center justify-between gap-1 text-[9.5px] whitespace-nowrap">
+                        <span className="persian-num font-extrabold text-[#1F6380]">
                           💧 {toPersianNum(plant.doseMl)} میلی‌لیتر
                         </span>
-                        <span className="text-[#E8E2D5]">|</span>
-                        <span className="persian-num text-[#5A655E] font-semibold truncate">
-                          {plant.doseCup}
+                        <span className="persian-num px-1.5 py-0.2 rounded-md bg-[#FDFBF7] border border-[#E8E2D5] text-[8.5px] font-extrabold text-[#1C2822]">
+                          {toPersianNum(metrics.moisturePercent)}٪ رطوبت
                         </span>
                       </div>
-                      <div className="w-full h-1 bg-[#E8E2D5]/70 rounded-full overflow-hidden">
+
+                      <div className="w-full h-1.5 bg-[#E8E2D5] rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            metrics.dynamicStatus === 'thirsty' ? 'bg-[#C85A32]' : 'bg-[#2B7A9B]'
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isThirsty
+                              ? 'bg-gradient-to-l from-[#C85A32] to-[#E07A5F]'
+                              : metrics.moisturePercent <= 55
+                              ? 'bg-gradient-to-l from-[#2B7A9B] to-[#56A3C4]'
+                              : 'bg-gradient-to-l from-[#2E5A44] to-[#52B788]'
                           }`}
                           style={{ width: `${metrics.moisturePercent}%` }}
                         />
@@ -1729,27 +1808,28 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
                     </div>
                   </div>
 
+                  {/* ردیف ۵: نوار وضعیت پایین کارت */}
                   <div className="mt-2 pt-2 border-t border-[#E8E2D5]/80">
                     {metrics.dynamicStatus === 'thirsty' && (
-                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#FCEEE9] border border-[#C85A32]/30 text-[#C85A32] text-[10.5px] font-bold flex items-center justify-between whitespace-nowrap">
+                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#FCEEE9] border border-[#C85A32]/30 text-[#C85A32] text-[10px] font-extrabold flex items-center justify-between whitespace-nowrap">
                         <span>
                           {metrics.isWeekendShifted
-                            ? '⚡ پیش از تعطیلات'
+                            ? '⚡ نوبت پیش از تعطیلات'
                             : plant.fertDue
-                            ? 'آبیاری + کوددهی'
-                            : 'تشنه • نیازمند آب'}
+                            ? 'نوبت آبیاری + کود'
+                            : 'تشنه • نیازمند آبیاری'}
                         </span>
                         <IconWaterDrop className="w-3.5 h-3.5 shrink-0" />
                       </div>
                     )}
                     {metrics.dynamicStatus === 'mist' && (
-                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#E8F4F8] border border-[#2B7A9B]/30 text-[#2B7A9B] text-[10.5px] font-bold flex items-center justify-between whitespace-nowrap">
-                        <span>نیاز به غبارپاشی</span>
+                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#EBF4F8] border border-[#2B7A9B]/30 text-[#1F6380] text-[10px] font-extrabold flex items-center justify-between whitespace-nowrap">
+                        <span>نوبت غبارپاشی برگ</span>
                         <IconMistSpray className="w-3.5 h-3.5 shrink-0" />
                       </div>
                     )}
                     {metrics.dynamicStatus === 'locked' && (
-                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#E6F0EB] border border-[#2E5A44]/20 text-[#2E5A44] text-[10.5px] font-bold flex items-center justify-between whitespace-nowrap">
+                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#E6F0EB] border border-[#2E5A44]/25 text-[#2E5A44] text-[10px] font-extrabold flex items-center justify-between whitespace-nowrap">
                         <span className="persian-num">
                           سیراب ({toPersianNum(metrics.daysRemaining)} روز مانده)
                         </span>
@@ -1757,17 +1837,17 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
                       </div>
                     )}
                     {metrics.dynamicStatus === 'recovery' && (
-                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#FEF6E7] border border-[#B47B26]/30 text-[#B47B26] text-[10.5px] font-bold flex items-center justify-between whitespace-nowrap">
-                        <span>نقاهت پس از هرس</span>
+                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#FEF6E7] border border-[#B47B26]/30 text-[#B45309] text-[10px] font-extrabold flex items-center justify-between whitespace-nowrap">
+                        <span>دوره نقاهت پس از هرس</span>
                         <span>🩺</span>
                       </div>
                     )}
                     {metrics.dynamicStatus === 'ok' && (
-                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#E6F0EB]/60 text-[#2E5A44] text-[10.5px] font-semibold flex items-center justify-between whitespace-nowrap">
+                      <div className="w-full px-2 py-1.5 rounded-xl bg-[#E6F0EB]/70 border border-[#2E5A44]/15 text-[#2E5A44] text-[10px] font-bold flex items-center justify-between whitespace-nowrap">
                         <span className="persian-num">
-                          سیراب ({toPersianNum(metrics.daysRemaining)} روز دیگر)
+                          سیراب ({toPersianNum(metrics.daysRemaining)} روز تا آبیاری)
                         </span>
-                        <span>✓</span>
+                        <span className="font-extrabold">✓</span>
                       </div>
                     )}
                   </div>
@@ -1820,12 +1900,16 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
         }
         onEditPlant={(plant: PlantEntity) => setEditingPlant(plant)}
         onDeleteHistory={handleDeleteHistory}
-        onReportHistoryError={(name) => {
+        onReportHistoryError={async (name) => {
           sendInstantNotification(
             `🚩 گزارش خطا در ${currentSpace.name}`,
             `درخواست بررسی و اصلاح تاریخچه برای گلدان «${name}» ثبت شد.`
           );
-          alert(`گزارش خطای ثبت برای «${name}» ارسال شد.`);
+          await showBotanicalAlert({
+            title: 'گزارش خطا ارسال شد',
+            message: `درخواست بررسی و اصلاح تاریخچه برای گلدان «${name}» ثبت و به مدیریت اطلاع داده شد.`,
+            tone: 'success'
+          });
         }}
         onOpenGuide={(topic) => setGuideTopic(topic)}
         onOpenQR={(plant) => setQrPlant(plant)}
@@ -1962,59 +2046,97 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
         }}
       />
 
-      {confirmState && !isVisitor && (
-        <div className="fixed inset-0 z-50 bg-[#1C2822]/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4">
-            <div>
-              <h3 className="font-heading text-[16px] font-bold text-[#1C2822]">
-                {confirmState.actionType === 'water'
-                  ? '💧 تایید ثبت آبیاری'
-                  : confirmState.actionType === 'mist'
-                  ? '💦 تایید ثبت غبارپاشی'
-                  : confirmState.actionType === 'rotate'
-                  ? '🔄 تایید چرخش ۹۰ درجه گلدان'
-                  : confirmState.actionType === 'prune'
-                  ? '✂️ تایید ثبت هرس و فرم‌دهی'
-                  : confirmState.actionType === 'repot'
-                  ? '🪴 تایید ثبت تعویض خاک و گلدان'
-                  : confirmState.actionType === 'clean_leaves'
-                  ? '✨ تایید غبارروبی و تمیز کردن برگ‌ها'
-                  : '⏳ خاک مرطوب است (نیاز به آبیاری ندارد)'}
-              </h3>
-              <p className="persian-num text-[12px] text-[#5A655E] mt-0.5">
-                {confirmState.plant.name} ({confirmState.plant.code}) • {currentSpace.name}
-              </p>
+      {confirmState && canWaterAndMist && (
+        <div className="fixed inset-0 z-50 bg-[#1C2822]/55 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-3xl max-w-sm w-full p-4 shadow-2xl space-y-3.5 overflow-hidden">
+            {/* هدر متقارن با دکمه ضربدر برداری */}
+            <div className="flex items-center justify-between gap-2 border-b border-[#E8E2D5] pb-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="persian-num px-2 py-0.5 rounded-lg bg-[#E6F0EB] border border-[#2E5A44]/25 text-[#2E5A44] text-[10px] font-extrabold shrink-0">
+                  پلاک {confirmState.plant.code}
+                </span>
+                <h3 className="font-heading text-[14.5px] font-extrabold text-[#1C2822] truncate">
+                  {confirmState.actionType === 'water'
+                    ? '💧 تایید ثبت آبیاری'
+                    : confirmState.actionType === 'mist'
+                    ? '💨 تایید ثبت غبارپاشی'
+                    : confirmState.actionType === 'rotate'
+                    ? '🔄 تایید چرخش ۹۰ درجه'
+                    : confirmState.actionType === 'prune'
+                    ? '✂️ تایید ثبت هرس'
+                    : confirmState.actionType === 'repot'
+                    ? '🪴 تایید تعویض خاک'
+                    : confirmState.actionType === 'clean_leaves'
+                    ? '✨ تایید غبارروبی برگ'
+                    : '🛡️ خاک مرطوب (تعویق آبیاری)'}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setConfirmState(null)}
+                aria-label="بستن پنجره تایید"
+                className="w-8 h-8 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] text-[#1C2822] hover:bg-[#FCEEE9] hover:text-[#C85A32] flex items-center justify-center shrink-0 active:scale-90 transition-all"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2.1"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
             </div>
 
-            <div className="persian-num text-[12.5px] text-[#1C2822] bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] leading-relaxed">
-              {confirmState.actionType === 'water'
-                ? `لطفاً به میزان ${toPersianNum(confirmState.plant.doseMl)} میلی‌لیتر (معادل ${confirmState.plant.doseCup}) آب ولرم بدون کلر پای خاک بریزید.`
-                : confirmState.actionType === 'mist'
-                ? 'با اسپری دستی از فاصله ۳۰ سانتی‌متری روی برگ‌ها آب بدون املاح بپاشید.'
-                : confirmState.actionType === 'rotate'
-                ? 'گلدان را ۹۰ درجه بچرخانید تا تمام برگ‌ها به صورت متقارن نور دریافت کنند.'
-                : confirmState.actionType === 'prune'
-                ? 'برگ‌های زرد/مسن را با قیچی تمیز جدا کرده یا سرشاخه‌ها را فرم‌دهی نمایید.'
-                : confirmState.actionType === 'repot'
-                ? 'تعویض خاک و بررسی سلامت ریشه ثبت می‌شود (تا ۲ هفته پس از تعویض خاک کود ندهید).'
-                : confirmState.actionType === 'clean_leaves'
-                ? 'پاک کردن گردوغبار سطح برگ‌ها با دستمال مرطوب جهت باز شدن منافذ تنفسی ثبت می‌شود.'
-                : 'از آنجایی که خاک هنوز نم‌دار است، گیاه نیازی به آب ندارد و نوبت آبیاری ۲ روز به تعویق می‌افتد.'}
+            {/* کارت پیش‌نمایش مینیاتوری گیاه + دستورالعمل دقیق */}
+            <div className="bg-[#F6F3EC] p-2.5 rounded-2xl border border-[#E8E2D5] flex items-center gap-2.5">
+              <div className="w-14 h-14 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="transform scale-65">
+                  <PlantStylizedIllustration
+                    shape={confirmState.plant.shape3D}
+                    potColor={confirmState.plant.potColor}
+                    potShape={confirmState.plant.potShape}
+                    customSvgMarkup={confirmState.plant.customSvgMarkup}
+                  />
+                </div>
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="text-[12px] font-extrabold text-[#1C2822] truncate">
+                  {confirmState.plant.name}
+                </div>
+                <p className="persian-num text-[10.5px] font-semibold text-[#5A655E] leading-relaxed text-justify">
+                  {confirmState.actionType === 'water'
+                    ? `پیمانه دقیق ${toPersianNum(
+                        confirmState.plant.doseMl
+                      )} میلی‌لیتر (${confirmState.plant.doseCup}) آب بدون کلر پای بستر خاک ریخته شود.`
+                    : confirmState.actionType === 'mist'
+                    ? 'از فاصله ۳۰ سانتی‌متری روی برگ‌ها آب بدون املاح اسپری شود.'
+                    : confirmState.actionType === 'rotate'
+                    ? 'گلدان را ۹۰ درجه بچرخانید تا تمام برگ‌ها متقارن نور بگیرند.'
+                    : confirmState.actionType === 'prune'
+                    ? 'برگ‌های پیر یا زرد پایینی با قیچی ضدعفونی‌شده جدا شوند.'
+                    : confirmState.actionType === 'repot'
+                    ? 'تعویض خاک و بررسی سلامت ریشه ثبت می‌شود.'
+                    : 'چون بستر هنوز مرطوب است، نوبت آبیاری ۲ روز به تعویق می‌افتد.'}
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[12px] font-bold text-[#1C2822] mb-1.5">
-                ثبت توسط کدام عضو «{currentSpace.name}»؟
+            {/* انتخاب عضو ثبت‌کننده */}
+            <div className="space-y-1.5">
+              <label className="block text-[10.5px] font-extrabold text-[#1C2822]">
+                👤 ثبت توسط کدام عضو «{currentSpace.name}»؟
               </label>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {spaceMembers.map((m) => (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => setSelectedActor(m.name)}
-                    className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all ${
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border truncate transition-all active:scale-95 ${
                       selectedActor === m.name
-                        ? 'bg-[#2E5A44] text-white border-[#2E5A44]'
+                        ? 'bg-[#2E5A44] text-white border-[#2E5A44] shadow-xs'
                         : 'bg-[#F6F3EC] text-[#1C2822] border-[#E8E2D5]'
                     }`}
                   >
@@ -2029,19 +2151,21 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
               value={actionNote}
               onChange={(e) => setActionNote(e.target.value)}
               placeholder="یادداشت اختیاری (در تاریخچه و تلگرام ثبت می‌شود)..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] text-[12.5px] focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] text-[11px] font-semibold focus:outline-none focus:border-[#2E5A44]"
             />
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2 pt-0.5">
               <button
+                type="button"
                 onClick={handleConfirmExecute}
-                className="flex-1 py-3 rounded-2xl bg-[#2E5A44] text-white font-bold text-[13.5px]"
+                className="flex-1 py-2.5 rounded-2xl bg-[#2E5A44] text-white font-extrabold text-[12px] warm-shadow active:scale-98 transition-transform"
               >
-                بله، ثبت و ارسال گزارش ✓
+                ثبت در تاریخچه و ارسال گزارش ✓
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmState(null)}
-                className="px-5 py-3 rounded-2xl bg-[#F6F3EC] text-[#5A655E] font-semibold text-[13px]"
+                className="px-4 py-2.5 rounded-2xl bg-[#F6F3EC] border border-[#E8E2D5] text-[#5A655E] font-bold text-[11.5px]"
               >
                 انصراف
               </button>
@@ -2051,16 +2175,23 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
       )}
 
       {undoMessage && (
-        <div className="fixed bottom-4 inset-x-4 max-w-md mx-auto z-50 bg-[#1C2822] text-[#FDFBF7] px-4 py-3 rounded-2xl shadow-xl flex items-center justify-between">
-          <span className="persian-num text-[12px] font-medium">{undoMessage}</span>
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="fixed bottom-4 inset-x-3 max-w-md mx-auto z-50 bg-[#1C2822] text-[#FDFBF7] px-3.5 py-2.5 rounded-2xl shadow-xl border border-white/10 flex items-center justify-between gap-2">
+          <span className="persian-num text-[11px] font-semibold truncate">
+            {undoMessage}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
+              type="button"
               onClick={handleUndo}
-              className="px-3 py-1 rounded-xl bg-[#B47B26] text-white text-[11.5px] font-bold"
+              className="px-2.5 py-1 rounded-xl bg-[#B47B26] text-white text-[10.5px] font-extrabold active:scale-95 transition-transform"
             >
-              ↩️ واگرد (لغو)
+              ↩️ واگرد
             </button>
-            <button onClick={() => setUndoMessage(null)} className="text-white/60 text-xs px-1">
+            <button
+              type="button"
+              onClick={() => setUndoMessage(null)}
+              className="w-6 h-6 rounded-lg bg-white/10 text-white/80 text-xs flex items-center justify-center"
+            >
               ✕
             </button>
           </div>
@@ -2068,31 +2199,43 @@ const [userRole, setUserRole] = useState<AccessRole>(() => {
       )}
 
       {guideTopic && (
-        <div className="fixed inset-0 z-50 bg-[#1C2822]/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-3xl max-w-sm w-full p-5 space-y-3">
-            <h3 className="font-heading text-[15.5px] font-bold text-[#1C2822]">
+        <div className="fixed inset-0 z-50 bg-[#1C2822]/55 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-3xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E8E2D5] pb-2">
+              <h3 className="font-heading text-[14px] font-extrabold text-[#1C2822]">
+                {guideTopic === 'misting'
+                  ? '💨 راهنمای غبارپاشی برگ‌ها'
+                  : guideTopic === 'watering'
+                  ? '💧 راهنمای پیمانه آبیاری'
+                  : '🌱 روش تست رطوبت بستر'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setGuideTopic(null)}
+                className="w-7 h-7 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] text-[#5A655E] flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="persian-num text-[11px] text-[#1C2822] bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] leading-relaxed text-justify">
               {guideTopic === 'misting'
-                ? '💦 غبارپاشی چیست؟'
+                ? 'پاشیدن آب بدون املاح به صورت ذرات پودری با اسپری دستی از فاصله ۳۰ سانتی‌متری در هوای اطراف برگ‌ها تا رطوبت تامین شود بدون اینکه سطح برگ خیس بماند.'
                 : guideTopic === 'watering'
-                ? '💧 راهنمای پیمانه آبیاری'
-                : '🌱 روش تست رطوبت خاک'}
-            </h3>
-            <p className="persian-num text-[12.5px] text-[#5A655E] leading-relaxed">
-              {guideTopic === 'misting'
-                ? 'پاشیدن آب بدون املاح به صورت ذرات پودری با اسپری دستی از فاصله ۳۰ سانتی‌متری در هوای اطراف برگ‌ها تا رطوبت تامین شود بدون اینکه خاک خیس گردد.'
-                : guideTopic === 'watering'
-                ? 'یک لیوان معمولی پر معادل ۲۵۰ میلی‌لیتر است. آب ولرم هم‌دمای اتاق را به آرامی از لبه گلدان روی خاک پخش کنید.'
-                : 'نوک انگشت را ۲ تا ۳ سانتی‌متر وارد خاک کنید؛ اگر خاک خشک بود زمان آبیاری است و اگر هنوز خنک و نم‌دار بود دکمه «خاک مرطوب» را بزنید.'}
+                ? 'یک لیوان استاندارد معادل ۲۵۰ میلی‌لیتر است. آب ولرم و بدون کلر هم‌دمای اتاق را به آرامی از لبه گلدان روی بستر خاک پخش کنید.'
+                : 'بند اول انگشت اشاره را ۲ تا ۳ سانتی‌متر وارد خاک کنید؛ اگر خاک خشک بود زمان آبیاری است و اگر هنوز خنک و مرطوب بود دکمه «خاک مرطوب» را بزنید.'}
             </p>
             <button
+              type="button"
               onClick={() => setGuideTopic(null)}
-              className="w-full py-2.5 rounded-2xl bg-[#2E5A44] text-white font-bold text-[13px]"
+              className="w-full py-2.5 rounded-2xl bg-[#2E5A44] text-white font-bold text-[12px] warm-shadow"
             >
-              متوجه شدم
+              متوجه شدم ✓
             </button>
           </div>
         </div>
       )}
+
+      <BotanicalDialogHost />
     </div>
   );
 }

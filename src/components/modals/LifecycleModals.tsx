@@ -24,6 +24,8 @@ import {
 } from '../../services/aiPlantService';
 import { registerModalBackHandler } from '../profile/PlantProfileSheet';
 
+import { showBotanicalAlert } from './BotanicalDialog';
+
 const toPersianNum = (num: number | string): string =>
   String(num).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 
@@ -672,7 +674,11 @@ export const AddPlantModal: React.FC<AddPlantModalProps> = ({
       overrideImage !== undefined ? overrideImage : uploadedPreview ? uploadedPreview : undefined;
 
     if (!targetName.trim() && !companionText.trim() && !targetImage) {
-      alert('لطفاً نام گیاه را بنویسید، از لیست انتخاب کنید، یا عکس گیاه را بارگذاری نمایید.');
+      await showBotanicalAlert({
+        title: 'نیاز به نام یا تصویر گیاه',
+        message: 'لطفاً نام گیاه را بنویسید، از بانک گونه‌ها انتخاب کنید، یا عکس گیاه را بارگذاری نمایید.',
+        tone: 'warning'
+      });
       return;
     }
 
@@ -833,7 +839,11 @@ export const AddPlantModal: React.FC<AddPlantModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() && !companionText.trim() && !uploadedPreview) {
-      alert('لطفاً ابتدا نام گیاه یا عکس آن را وارد کنید.');
+      await showBotanicalAlert({
+        title: 'تکمیل مشخصات گیاه',
+        message: 'لطفاً ابتدا نام گیاه را وارد کنید یا تصویر آن را اسکن نمایید.',
+        tone: 'warning'
+      });
       return;
     }
 

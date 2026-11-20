@@ -18,13 +18,29 @@ import {
   requestBrowserPushPermission
 } from '../../services/cloudSyncService';
 import { getGeminiApiKey, saveGeminiApiKey } from '../../services/aiPlantService';
+import {
+  showBotanicalAlert,
+  askBotanicalConfirm
+} from './BotanicalDialog';
 
 const toPersianNum = (num: number | string): string =>
   String(num).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 
 // ============================================================================
-// آیکون‌های برداری مینیمال و اختصاصی برای هدر و ۴ تب مرکز مدیریت
+// آیکون‌های برداری مینیمال و اختصاصی برای هدر، ۴ تب و دکمه‌های راهنما (ⓘ)
 // ============================================================================
+const IconInfoCircle: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+    <path
+      d="M12 16v-4M12 8h.01"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 const IconTabMembers: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none">
     <path
@@ -173,6 +189,7 @@ interface SettingsAndMembersModalProps {
 }
 
 type ManagementTabKey = 'members' | 'spaces' | 'telegram' | 'system';
+type SystemGuideKey = 'backup' | 'cloud_ai' | 'reset' | null;
 
 export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = ({
   isOpen,
@@ -195,8 +212,9 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
   onSwitchPreviewRole
 }) => {
   const [activeTab, setActiveTab] = useState<ManagementTabKey>('members');
+  const [systemGuide, setSystemGuide] = useState<SystemGuideKey>(null);
+  const [showSecretKeys, setShowSecretKeys] = useState(false);
 
-  // استیت‌های فرم تعریف عضو جدید (به صورت کشوی بازشونده تمیز)
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
   const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState<MemberRole>('caretaker');
@@ -461,7 +479,11 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
       }
     }
     await copyTextSafe(`${text}\n${url}`);
-    alert('✅ لینک دعوت در حافظه کپی شد!');
+    await showBotanicalAlert({
+      title: 'لینک دعوت کپی شد',
+      message: 'لینک ورود اختصاصی این عضو در حافظه کپی شد و آماده ارسال است.',
+      tone: 'success'
+    });
   };
 
   const handleDetectTelegramUsers = async () => {
@@ -497,9 +519,13 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     }
   };
 
-  const handleToggleMemberActive = (id: string) => {
+  const handleToggleMemberActive = async (id: string) => {
     if (id === 'm_owner_sina') {
-      alert('حساب مالک ارشد همواره فعال است.');
+      await showBotanicalAlert({
+        title: 'حساب مالک ارشد',
+        message: 'حساب مالک ارشد گلخانه همواره فعال است و امکان تعلیق آن وجود ندارد.',
+        tone: 'info'
+      });
       return;
     }
     onUpdateMembers(members.map((m) => (m.id === id ? { ...m, active: !m.active } : m)));
@@ -509,12 +535,23 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     onUpdateMembers(members.map((m) => (m.id === id ? { ...m, [field]: !m[field] } : m)));
   };
 
-  const handleDeleteMember = (id: string) => {
+  const handleDeleteMember = async (id: string) => {
     if (id === 'm_owner_sina') {
-      alert('حساب مالک ارشد قابل حذف نیست.');
+      await showBotanicalAlert({
+        title: 'حساب غیرقابل حذف',
+        message: 'حساب مالک ارشد گلخانه قابل حذف نیست.',
+        tone: 'warning'
+      });
       return;
     }
-    if (!window.confirm('آیا از حذف این عضو از گلخانه مطمئن هستید؟')) return;
+    const targetMem = members.find((m) => m.id === id);
+    const confirmed = await askBotanicalConfirm({
+      title: `حذف عضو «${targetMem?.name || ''}»`,
+      message: `آیا از حذف «${targetMem?.name || 'این عضو'}» و لغو دسترسی او به گلخانه مطمئن هستید؟`,
+      tone: 'danger',
+      confirmLabel: 'بله، حذف شود'
+    });
+    if (!confirmed) return;
     if (activeInviteMember?.id === id) setActiveInviteMember(null);
     onUpdateMembers(members.filter((m) => m.id !== id));
   };
@@ -536,7 +573,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
         lightLevel: 'high'
       }
     ]);
-    // افزودن خودکار فضای جدید به دسترسی مالک ارشد
     onUpdateMembers(
       members.map((m) =>
         m.role === 'super_admin' && !m.assignedSpaces.includes(newSpaceId)
@@ -586,7 +622,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     setEditingGardenId(null);
   };
 
-  const handleExportBackup = () => {
+  const handleExportBackup = async () => {
     const backupPayload = {
       version: 8,
       exportedAt: new Date().toISOString(),
@@ -604,13 +640,21 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     a.download = `botanica-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+
+    await showBotanicalAlert({
+      title: 'فایل پشتیبان دانلود شد',
+      message: `فایل پشتیبان کامل شامل ${toPersianNum(spaces.length)} گلخانه، ${toPersianNum(
+        gardens.length
+      )} باغچه و ${toPersianNum(plants.length)} گلدان با فرمت استاندارد JSON در دستگاه شما ذخیره شد.`,
+      tone: 'success'
+    });
   };
 
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(reader.result as string);
         if (parsed.plants && parsed.gardens) {
@@ -620,10 +664,24 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
             plants: parsed.plants,
             members: parsed.members || members
           });
-          alert('✅ فایل پشتیبان با موفقیت بازیابی شد!');
+          await showBotanicalAlert({
+            title: 'بازیابی موفقیت‌آمیز اطلاعات',
+            message: 'تمام فضاها، باغچه‌ها، گلدان‌ها و سوابق مراقبتی با موفقیت از فایل پشتیبان بازیابی شدند.',
+            tone: 'success'
+          });
+        } else {
+          await showBotanicalAlert({
+            title: 'ساختار فایل نامعتبر است',
+            message: 'فایل انتخاب‌شده فاقد ساختار استاندارد پشتیبان گلخانه است.',
+            tone: 'danger'
+          });
         }
       } catch {
-        alert('❌ فایل انتخاب‌شده معتبر نیست.');
+        await showBotanicalAlert({
+          title: 'خطا در خواندن فایل',
+          message: 'فایل انتخاب‌شده معتبر نیست. لطفاً یک فایل پشتیبان با پسوند .json انتخاب کنید.',
+          tone: 'danger'
+        });
       }
     };
     reader.readAsText(file);
@@ -647,7 +705,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
     if (res.ok) {
       setTestStatus({
         loading: false,
-        message: `✅ گزارش هوشمند «${currentSpace.name}» همراه با دکمه‌های شیشه‌ای به ${toPersianNum(
+        message: `✅ داشبورد زنده «${currentSpace.name}» به تلگرام ${toPersianNum(
           res.sentCount
         )} عضو ارسال شد!`,
         isError: false
@@ -663,10 +721,14 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
 
   const activePlantsCount = plants.filter((p) => !p.archived).length;
   const archivedPlantsCount = plants.filter((p) => p.archived).length;
+  const isSupabaseConfigured = Boolean(
+    cloudConfig.supabaseUrl?.trim() && cloudConfig.supabaseAnonKey?.trim()
+  );
+  const isGeminiConfigured = Boolean(geminiKey.trim().length > 10);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#1C2822]/55 backdrop-blur-xs flex items-center justify-center p-3">
-      {/* قاب قفل‌شده ۳ لایه بدون هیچ‌گونه بیرون‌زدگی در موبایل */}
+      {/* قاب قفل‌شده ۳ لایه بدون بیرون‌زدگی */}
       <div className="bg-[#FDFBF7] border border-[#E8E2D5] rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* ۱. هدر ثابت و متقارن */}
         <div className="px-3.5 pt-3 pb-2.5 border-b border-[#E8E2D5] bg-[#FDFBF7] shrink-0 space-y-2.5">
@@ -676,7 +738,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.9" />
                   <path
-                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0-4h-.09a1.65 1.65 0 0 0-1.51 1z"
                     stroke="currentColor"
                     strokeWidth="1.8"
                   />
@@ -750,7 +812,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
           {/* =================================================================== */}
           {activeTab === 'members' && (
             <div className="space-y-3">
-              {/* نوار ابزار بالای تب اعضا: دکمه باز کردن فرم عضو جدید + اتصال خودکار تلگرام */}
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
@@ -779,7 +840,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               )}
 
-              {/* لیست افرادی که اخیراً در ربات Start زده‌اند */}
               {botSubscribers.length > 0 && (
                 <div className="bg-[#FDFBF7] border border-[#2B7A9B]/30 rounded-2xl p-2.5 space-y-1.5 warm-shadow">
                   <div className="flex items-center justify-between text-[10px] font-extrabold text-[#1F6380]">
@@ -827,7 +887,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               )}
 
-              {/* کارت دعوت اختصاصی عضو (ربات تلگرام + لینک ورود مستقیم به اپ) */}
               {activeInviteMember && (
                 <div className="bg-[#E6F0EB] border-2 border-[#2E5A44] rounded-2xl p-3 space-y-2.5 warm-shadow">
                   <div className="flex items-center justify-between">
@@ -843,7 +902,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     </button>
                   </div>
 
-                  {/* ۱. لینک ربات تلگرام */}
                   <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8E2D5] space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10.5px] font-extrabold text-[#1F6380]">
@@ -899,7 +957,7 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             onClick={() =>
                               handleShareViaTelegramApp(
                                 buildMemberBotInviteUrl(activeInviteMember),
-                                `سلام ${activeInviteMember.name} عزیز 🌱؛ روی این لینک بزن و در ربات گلخانه دکمه Start را فشار بده تا کیبورد هوشمند و اعلان‌ها برایت فعال شود:`
+                                `سلام ${activeInviteMember.name} عزیز 🌱؛ روی این لینک بزن و در ربات گلخانه دکمه Start را فشار بده تا اعلان‌های گلخانه برایت فعال شود:`
                               )
                             }
                             className="py-1.5 px-2 rounded-lg bg-[#2E5A44] text-white text-[10px] font-bold"
@@ -911,7 +969,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     )}
                   </div>
 
-                  {/* ۲. لینک ورود به وب‌اپلیکیشن با سطح دسترسی عضو */}
                   <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8E2D5] space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10.5px] font-extrabold text-[#2E5A44]">
@@ -969,7 +1026,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               )}
 
-              {/* فرم تاشوی تعریف عضو جدید (با گرید متقارن ۲×۲ نقش‌ها و بدون دراپ‌داون مرورگر) */}
               {showAddMemberForm && (
                 <form
                   onSubmit={handleAddMember}
@@ -1012,7 +1068,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     </div>
                   </div>
 
-                  {/* انتخاب نقش پایه در گرید متقارن ۲×۲ (بدون دراپ‌داون بومی مرورگر) */}
                   <div>
                     <label className="block text-[9.5px] font-bold text-[#5A655E] mb-1">
                       نقش پایه و سطح دسترسی پیش‌فرض:
@@ -1103,7 +1158,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     </div>
                   )}
 
-                  {/* ۴ مجوز ریزدانه عملیاتی */}
                   <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8E2D5] space-y-1.5">
                     <div className="text-[9.5px] font-bold text-[#1C2822]">
                       🛡️ تنظیم دقیق مجوزهای عملیاتی (قابل شخصی‌سازی):
@@ -1132,7 +1186,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     </div>
                   </div>
 
-                  {/* تنظیمات اعلان تلگرام برای عضو جدید */}
                   <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                     <button
                       type="button"
@@ -1169,7 +1222,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </form>
               )}
 
-              {/* لیست اعضای ثبت‌شده در گلخانه */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-0.5">
                   <span className="text-[11px] font-extrabold text-[#1C2822]">
@@ -1215,7 +1267,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                           : 'bg-[#F6F3EC]/70 border-[#E8E2D5] opacity-65'
                       }`}
                     >
-                      {/* ردیف ۱: نام، بج نقش و دکمه‌های مدیریتی */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 space-y-1">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -1298,10 +1349,8 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                         </div>
                       </div>
 
-                      {/* کشوی ویرایش زنده نقش، پین‌کد، باغچه‌ها و ۴ مجوز عضو */}
                       {isPermExpanded && isSuperAdmin && (
                         <div className="bg-[#F6F3EC] border border-[#E8E2D5] rounded-xl p-2.5 space-y-2.5 text-[10px]">
-                          {/* تغییر نقش پایه با گرید دکمه‌ای متقارن */}
                           {!isPrimaryOwner && (
                             <div>
                               <label className="block text-[9.5px] font-bold text-[#5A655E] mb-1">
@@ -1334,7 +1383,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             </div>
                           )}
 
-                          {/* تنظیم پین‌کد ۴ رقمی و آیدی تلگرام دستی */}
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] font-bold text-[#5A655E] mb-0.5">
@@ -1375,7 +1423,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             </div>
                           </div>
 
-                          {/* تغییر فضاهای مجاز */}
                           <div>
                             <div className="text-[9.5px] font-bold text-[#5A655E] mb-1">
                               گلخانه‌های مجاز:
@@ -1401,7 +1448,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             </div>
                           </div>
 
-                          {/* فیلتر باغچه‌های مجاز */}
                           {memberCandidateGardens.length > 1 && (
                             <div>
                               <div className="text-[9.5px] font-bold text-[#5A655E] mb-1">
@@ -1429,7 +1475,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             </div>
                           )}
 
-                          {/* ۴ کلید مجوز عملیاتی */}
                           <div className="grid grid-cols-2 gap-1 pt-0.5">
                             {PERMISSION_ITEMS.map(({ key, label }) => {
                               const on = effectivePerms[key];
@@ -1452,7 +1497,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                             })}
                           </div>
 
-                          {/* دکمه تست و پیش‌نمایش برنامه از دید این عضو */}
                           <button
                             type="button"
                             onClick={() => {
@@ -1472,7 +1516,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                         </div>
                       )}
 
-                      {/* ردیف پایین کارت عضو: سوییچ‌های هشدار/گزارش + دکمه‌های دعوت */}
                       <div className="pt-1.5 border-t border-[#E8E2D5]/80 flex items-center justify-between gap-1 text-[9.5px]">
                         <div className="flex items-center gap-1">
                           <button
@@ -1524,11 +1567,10 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
           )}
 
           {/* =================================================================== */}
-          {/* تب ۲: باغچه‌ها و فضاهای اصلی گلخانه (با انتخابگرهای دکمه‌ای متقارن) */}
+          {/* تب ۲: باغچه‌ها و فضاهای اصلی گلخانه */}
           {/* =================================================================== */}
           {activeTab === 'spaces' && (
             <div className="space-y-3.5">
-              {/* بخش ۱: مدیریت باغچه‌های فضای فعلی */}
               <div className="bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-extrabold text-[#1C2822]">
@@ -1559,7 +1601,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                               className="w-full px-2.5 py-1.5 rounded-xl bg-[#F6F3EC] border border-[#E8E2D5] text-[11.5px] font-bold"
                               placeholder="نام باغچه..."
                             />
-                            {/* گرید ۳ ستونه انتخاب نور باغچه */}
                             <div className="grid grid-cols-3 gap-1">
                               {LIGHT_OPTIONS.map((lOpt) => (
                                 <button
@@ -1641,7 +1682,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                   })}
                 </div>
 
-                {/* فرم ساخت باغچه جدید با گرید ۳ دکمه‌ای نور */}
                 <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8E2D5] space-y-2">
                   <div className="text-[10.5px] font-extrabold text-[#2E5A44]">
                     ➕ افزودن باغچه جدید به «{currentSpace.name}»:
@@ -1692,7 +1732,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               </div>
 
-              {/* بخش ۲: مدیریت فضاهای اصلی (گلخانه محل کار / منزل و...) */}
               {isSuperAdmin && (
                 <div className="bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -1798,7 +1837,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     })}
                   </div>
 
-                  {/* فرم ساخت گلخانه جدید با گرید ۸ تایی آیکون‌ها */}
                   <div className="bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8E2D5] space-y-2">
                     <div className="text-[10.5px] font-extrabold text-[#2E5A44]">
                       ➕ ساخت فضای گلخانه جدید:
@@ -1839,7 +1877,6 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               )}
 
-              {/* بخش ۳: پیش‌نمایش حالت نمایشگاهی (بازدیدکننده) */}
               <div className="bg-[#EBF4F8]/80 p-3 rounded-2xl border border-[#2B7A9B]/25 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-[11.5px] font-extrabold text-[#1F6380]">
@@ -1870,10 +1907,10 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
             <div className="space-y-3">
               <div className="bg-[#E6F0EB]/70 p-3 rounded-2xl border border-[#2E5A44]/25 space-y-2.5 warm-shadow">
                 <div className="text-[12px] font-extrabold text-[#1C2822]">
-                  🤖 پنل تعاملی ربات تلگرام «{currentSpace.name}»
+                  🤖 داشبورد زنده ربات تلگرام «{currentSpace.name}»
                 </div>
                 <p className="text-[10px] text-[#5A655E] leading-relaxed text-justify">
-                  با ارسال پنل تعاملی، اعضای متصل به ربات می‌توانند مستقیماً از داخل تلگرام با زدن <strong>دکمه‌های شیشه‌ای</strong> آبیاری، غبارپاشی و چرخش را ثبت کنند و گزارش آنی در برنامه ثبت شود:
+                  با ارسال گزارش زیر، کارت داشبورد زنده گلخانه (با قابلیت ویرایش درجا و بدون اشغال فضای صفحه) در تلگرام اعضا باز می‌شود:
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -1996,11 +2033,11 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
           )}
 
           {/* =================================================================== */}
-          {/* تب ۴: سیستم، فضای ابری، هوش مصنوعی، پشتیبان‌گیری و بازنشانی */}
+          {/* تب ۴: سیستم، پشتیبان‌گیری، دیتابیس ابری و هوش مصنوعی جمینای (همراه با راهنمای ⓘ) */}
           {/* =================================================================== */}
           {activeTab === 'system' && (
             <div className="space-y-3">
-              {/* داشبورد خلاصه وضعیت سیستم */}
+              {/* ۱. خلاصه وضعیت پایگاه داده گلخانه */}
               <div className="bg-[#F6F3EC] border border-[#E8E2D5] rounded-2xl p-3 space-y-2">
                 <div className="text-[11.5px] font-extrabold text-[#1C2822]">
                   📊 خلاصه وضعیت پایگاه داده گلخانه
@@ -2028,16 +2065,52 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     <div className="text-[13px] font-extrabold text-[#B45309]">
                       {toPersianNum(members.length)}
                     </div>
-                    <div className="text-[8.5px] font-bold text-[#5A655E]">اعضا ({toPersianNum(archivedPlantsCount)} آرشیو)</div>
+                    <div className="text-[8.5px] font-bold text-[#5A655E]">
+                      اعضا ({toPersianNum(archivedPlantsCount)} آرشیو)
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* پشتیبان‌گیری و بازیابی اطلاعات */}
+              {/* ۲. پشتیبان‌گیری و بازیابی اطلاعات با دکمه راهنمای برداری ⓘ */}
               <div className="bg-[#FDFBF7] p-3 rounded-2xl border border-[#E8E2D5] space-y-2 warm-shadow">
-                <div className="text-[11.5px] font-extrabold text-[#1C2822]">
-                  💾 پشتیبان‌گیری و بازیابی اطلاعات (نسخه ۸)
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] font-extrabold text-[#1C2822]">
+                    💾 پشتیبان‌گیری و بازیابی اطلاعات
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSystemGuide(systemGuide === 'backup' ? null : 'backup')
+                    }
+                    aria-label="راهنمای پشتیبان‌گیری"
+                    className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all active:scale-90 shrink-0 ${
+                      systemGuide === 'backup'
+                        ? 'bg-[#1F6380] text-white border-[#1F6380]'
+                        : 'bg-[#EBF4F8] text-[#1F6380] border-[#2B7A9B]/30'
+                    }`}
+                  >
+                    <IconInfoCircle className="w-3.5 h-3.5" />
+                  </button>
                 </div>
+
+                {systemGuide === 'backup' && (
+                  <div className="bg-[#F6F3EC] border border-[#2B7A9B]/35 rounded-xl p-2.5 text-[9.5px] text-[#1C2822] leading-relaxed text-justify space-y-1">
+                    <div className="font-extrabold text-[#1F6380]">
+                      📖 راهنمای فایل پشتیبان (فرمت استاندارد JSON):
+                    </div>
+                    <p>
+                      • <strong>محتویات فایل:</strong> شامل تمام گلخانه‌ها، باغچه‌ها، گلدان‌ها، عکس‌ها، تاریخچه آبیاری و اعضای تعریف‌شده شماست.
+                    </p>
+                    <p>
+                      • <strong>چه زمانی دانلود کنیم؟</strong> پیشنهاد می‌شود ماهی یک‌بار یا پیش از تغییر مرورگر/گوشی، روی «دانلود فایل پشتیبان» بزنید تا یک نسخه آفلاین روی دستگاهتان داشته باشید.
+                    </p>
+                    <p>
+                      • <strong>نحوه بازیابی:</strong> هر زمان روی «بازیابی از فایل» بزنید و فایل <code>.json</code> دانلودشده را انتخاب کنید، تمام اطلاعات گلخانه در یک ثانیه بازگردانی می‌شود.
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -2058,44 +2131,121 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               </div>
 
-              {/* تنظیمات دیتابیس ابری Supabase و کلید هوش مصنوعی Gemini */}
+              {/* ۳. پایگاه داده ابری Supabase و کلید هوش مصنوعی Gemini با نشانگر زنده و راهنمای ⓘ */}
               {isSuperAdmin && (
-                <div className="bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] space-y-2">
-                  <div className="text-[11.5px] font-extrabold text-[#1C2822]">
-                    ☁️ پایگاه داده ابری (Supabase) و هوش مصنوعی (Gemini)
+                <div className="bg-[#F6F3EC] p-3 rounded-2xl border border-[#E8E2D5] space-y-2.5">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[11.5px] font-extrabold text-[#1C2822]">
+                      ☁️ فضای ابری و هوش مصنوعی جمینای
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowSecretKeys((v) => !v)}
+                        className="px-2 py-0.5 rounded-lg bg-[#FDFBF7] border border-[#E8E2D5] text-[9px] font-bold text-[#5A655E]"
+                      >
+                        {showSecretKeys ? '🙈 مخفی کردن کلیدها' : '👁️ نمایش کلیدها'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSystemGuide(systemGuide === 'cloud_ai' ? null : 'cloud_ai')
+                        }
+                        aria-label="راهنمای فضای ابری و جمینای"
+                        className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all active:scale-90 ${
+                          systemGuide === 'cloud_ai'
+                            ? 'bg-[#1F6380] text-white border-[#1F6380]'
+                            : 'bg-[#EBF4F8] text-[#1F6380] border-[#2B7A9B]/30'
+                        }`}
+                      >
+                        <IconInfoCircle className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* نشانگرهای وضعیت اتصال کلود و هوش مصنوعی */}
+                  <div className="grid grid-cols-2 gap-1.5 text-[9.5px] font-bold">
+                    <div
+                      className={`px-2 py-1 rounded-xl border flex items-center justify-between ${
+                        isSupabaseConfigured
+                          ? 'bg-[#E6F0EB] text-[#2E5A44] border-[#2E5A44]/25'
+                          : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                      }`}
+                    >
+                      <span>☁️ دیتابیس ابری:</span>
+                      <span>{isSupabaseConfigured ? 'فعال ✓' : 'آفلاین'}</span>
+                    </div>
+                    <div
+                      className={`px-2 py-1 rounded-xl border flex items-center justify-between ${
+                        isGeminiConfigured
+                          ? 'bg-[#E6F0EB] text-[#2E5A44] border-[#2E5A44]/25'
+                          : 'bg-[#FDFBF7] text-[#5A655E] border-[#E8E2D5]'
+                      }`}
+                    >
+                      <span>✨ هوش مصنوعی:</span>
+                      <span>{isGeminiConfigured ? 'متصل ✓' : 'تنظیم نشده'}</span>
+                    </div>
+                  </div>
+
+                  {systemGuide === 'cloud_ai' && (
+                    <div className="bg-[#FDFBF7] border border-[#2B7A9B]/35 rounded-xl p-2.5 text-[9.5px] text-[#1C2822] leading-relaxed text-justify space-y-1">
+                      <div className="font-extrabold text-[#1F6380]">
+                        📖 کاربرد دیتابیس ابری (Supabase) و کلید جمینای (Gemini):
+                      </div>
+                      <p>
+                        • <strong>Supabase (همگام‌سازی ابری):</strong> باعث می‌شود تغییرات گلخانه بین گوشی شما، سایر اعضا و ربات ۲۴ ساعته تلگرام به صورت زنده همگام‌سازی شود.
+                      </p>
+                      <p>
+                        • <strong>Gemini API Key (هوش مصنوعی بینایی ماشین):</strong> وقتی در بخش افزودن گیاه روی دکمه «📷 اسکن عکس» می‌زنید، عکس برگ را تحلیل کرده و نام دقیق گونه و واریته، فرمول خاک و ۵ عارضه کلینیک گیاه‌پزشکی آن را به صورت خودکار استخراج می‌کند.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      value={cloudConfig.supabaseUrl}
-                      onChange={(e) =>
-                        onUpdateCloudConfig({ ...cloudConfig, supabaseUrl: e.target.value.trim() })
-                      }
-                      placeholder="Supabase URL"
-                      dir="ltr"
-                      className="w-full px-2.5 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[10.5px] font-mono"
-                    />
-                    <input
-                      type="password"
-                      value={cloudConfig.supabaseAnonKey}
-                      onChange={(e) =>
-                        onUpdateCloudConfig({
-                          ...cloudConfig,
-                          supabaseAnonKey: e.target.value.trim()
-                        })
-                      }
-                      placeholder="Supabase Anon Key"
-                      dir="ltr"
-                      className="w-full px-2.5 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[10.5px] font-mono"
-                    />
+                    <div>
+                      <label className="block text-[9px] font-bold text-[#5A655E] mb-0.5">
+                        آدرس پروژه Supabase URL:
+                      </label>
+                      <input
+                        type="text"
+                        value={cloudConfig.supabaseUrl}
+                        onChange={(e) =>
+                          onUpdateCloudConfig({
+                            ...cloudConfig,
+                            supabaseUrl: e.target.value.trim()
+                          })
+                        }
+                        placeholder="https://...supabase.co"
+                        dir="ltr"
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[10px] font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold text-[#5A655E] mb-0.5">
+                        کلید Supabase Anon Key:
+                      </label>
+                      <input
+                        type={showSecretKeys ? 'text' : 'password'}
+                        value={cloudConfig.supabaseAnonKey}
+                        onChange={(e) =>
+                          onUpdateCloudConfig({
+                            ...cloudConfig,
+                            supabaseAnonKey: e.target.value.trim()
+                          })
+                        }
+                        placeholder="eyJhbGci..."
+                        dir="ltr"
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-[#FDFBF7] border border-[#E8E2D5] text-[10px] font-mono"
+                      />
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-[9.5px] font-bold text-[#5A655E] mb-0.5">
-                      کلید هوش مصنوعی Gemini Vision (جهت اسکن و تشخیص دقیق برگ از عکس):
+                      کلید هوش مصنوعی Google Gemini Vision (جهت تشخیص گیاه با عکس):
                     </label>
                     <input
-                      type="password"
+                      type={showSecretKeys ? 'text' : 'password'}
                       value={geminiKey}
                       onChange={(e) => {
                         setGeminiKey(e.target.value);
@@ -2109,26 +2259,52 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                 </div>
               )}
 
-              {/* پاکسازی داده‌های پیش‌فرض و شروع از صفر */}
+              {/* ۴. بازنشانی و شروع از صفر (با دیالوگ اختصاصی بوتانیکال و راهنمای ⓘ) */}
               {isSuperAdmin && onResetGreenhouse && (
                 <div className="bg-[#FCEEE9]/65 p-3 rounded-2xl border border-[#C85A32]/30 space-y-2">
-                  <div className="text-[11.5px] font-extrabold text-[#C85A32]">
-                    🧹 بازنشانی و شروع از صفر (Zero-State)
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11.5px] font-extrabold text-[#C85A32]">
+                      🧹 بازنشانی و شروع از صفر (Zero-State)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSystemGuide(systemGuide === 'reset' ? null : 'reset')
+                      }
+                      aria-label="راهنمای بازنشانی"
+                      className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all active:scale-90 shrink-0 ${
+                        systemGuide === 'reset'
+                          ? 'bg-[#C85A32] text-white border-[#C85A32]'
+                          : 'bg-[#FDFBF7] text-[#C85A32] border-[#C85A32]/35'
+                      }`}
+                    >
+                      <IconInfoCircle className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <p className="text-[9.5px] text-[#5A655E] leading-relaxed text-justify">
-                    می‌توانید فقط گلدان‌های پیش‌فرض را خالی کنید (با حفظ گلخانه‌ها و باغچه‌ها) یا کل سیستم را به حالت خام اولیه بازنشانی نمایید:
-                  </p>
+
+                  {systemGuide === 'reset' && (
+                    <div className="bg-[#FDFBF7] border border-[#C85A32]/35 rounded-xl p-2.5 text-[9.5px] text-[#1C2822] leading-relaxed text-justify space-y-1">
+                      <p>
+                        • <strong>🪴 فقط حذف گلدان‌ها:</strong> تمام گلخانه‌ها، باغچه‌ها و اعضای تعریف‌شده حفظ می‌شوند و فقط لیست گلدان‌ها خالی می‌شود تا ثبت گیاهان خودتان را از پلاک <code>#۰۱</code> آغاز کنید.
+                      </p>
+                      <p>
+                        • <strong>🔄 شروع ۱۰۰٪ خام از صفر:</strong> کل فضاها، باغچه‌ها، گلدان‌ها و اعضای آزمایشی پاک شده و یک گلخانه خام اولیه ساخته می‌شود.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            '⚠️ آیا تمام گلدان‌های فعلی پاک شوند تا ثبت گلدان‌ها را از پلاک #۰۱ شروع کنید؟ (گلخانه‌ها و باغچه‌ها حفظ می‌شوند)'
-                          )
-                        ) {
-                          onResetGreenhouse('plants_only');
-                        }
+                      onClick={async () => {
+                        const ok = await askBotanicalConfirm({
+                          title: 'حذف همه گلدان‌های فعلی',
+                          message:
+                            'آیا تمام گلدان‌های فعلی پاک شوند تا ثبت گلدان‌ها را از پلاک #۰۱ شروع کنید؟ (گلخانه‌ها، باغچه‌ها و اعضا حفظ می‌شوند)',
+                          tone: 'warning',
+                          confirmLabel: 'بله، گلدان‌ها پاک شوند'
+                        });
+                        if (ok) onResetGreenhouse('plants_only');
                       }}
                       className="py-2 px-2 rounded-xl bg-[#FDFBF7] border border-[#C85A32]/40 text-[#C85A32] text-[10px] font-extrabold active:scale-95 transition-transform"
                     >
@@ -2136,14 +2312,15 @@ export const SettingsAndMembersModal: React.FC<SettingsAndMembersModalProps> = (
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            '⚠️ آیا کل سیستم (گلخانه‌ها، باغچه‌ها و گلدان‌ها) به حالت ۱۰۰٪ خام اولیه بازنشانی شود؟'
-                          )
-                        ) {
-                          onResetGreenhouse('full_zero');
-                        }
+                      onClick={async () => {
+                        const ok = await askBotanicalConfirm({
+                          title: 'شروع ۱۰۰٪ خام از صفر',
+                          message:
+                            'آیا کل سیستم (گلخانه‌ها، باغچه‌ها، گلدان‌ها و اعضای آزمایشی) به حالت ۱۰۰٪ خام اولیه بازنشانی شود؟',
+                          tone: 'danger',
+                          confirmLabel: 'بله، بازنشانی کامل شود'
+                        });
+                        if (ok) onResetGreenhouse('full_zero');
                       }}
                       className="py-2 px-2 rounded-xl bg-[#C85A32] text-white text-[10px] font-extrabold active:scale-95 transition-transform"
                     >
